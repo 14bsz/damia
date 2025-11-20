@@ -67,7 +67,7 @@ import java.util.stream.Collectors;
 import static com.damai.core.DistributedLockConstants.REGISTER_USER_LOCK;
 
 /**
- * @program: 极度真实还原大麦网高并发实战项目。 添加 阿星不是程序员 微信，添加时备注 大麦 来获取项目的完整资料
+ * @program: 极度真实还原票务平台网高并发实战项目。 添加 阿星不是程序员 微信，添加时备注 票务平台 来获取项目的完整资料
  * @description: 用户 service
  **/
 @Slf4j
@@ -159,6 +159,7 @@ public class UserService extends ServiceImpl<UserMapper, User> {
         }
         Long userId;
         if (StringUtil.isNotEmpty(mobile)) {
+            // 1. 检查错误次数是否超限（防暴力）
             String errorCountStr =
                     redisCache.get(RedisKeyBuild.createRedisKey(RedisKeyManage.LOGIN_USER_MOBILE_ERROR, mobile), String.class);
             if (StringUtil.isNotEmpty(errorCountStr) && Integer.parseInt(errorCountStr) >= ERROR_COUNT_THRESHOLD) {
@@ -166,8 +167,10 @@ public class UserService extends ServiceImpl<UserMapper, User> {
             }
             LambdaQueryWrapper<UserMobile> queryWrapper = Wrappers.lambdaQuery(UserMobile.class)
                     .eq(UserMobile::getMobile, mobile);
+            // 2. 查手机号是否存在
             UserMobile userMobile = userMobileMapper.selectOne(queryWrapper);
             if (Objects.isNull(userMobile)) {
+                // 错误次数+1，缓存1分钟
                 redisCache.incrBy(RedisKeyBuild.createRedisKey(RedisKeyManage.LOGIN_USER_MOBILE_ERROR,mobile),1);
                 redisCache.expire(RedisKeyBuild.createRedisKey(RedisKeyManage.LOGIN_USER_MOBILE_ERROR,mobile),1,TimeUnit.MINUTES);
                 throw new DaMaiFrameException(BaseCode.USER_MOBILE_EMPTY);
@@ -189,12 +192,14 @@ public class UserService extends ServiceImpl<UserMapper, User> {
             }
             userId = userEmail.getUserId();
         }
+        //4. 校验密码
         LambdaQueryWrapper<User> queryUserWrapper = Wrappers.lambdaQuery(User.class)
                 .eq(User::getId, userId).eq(User::getPassword, password);
         User user = userMapper.selectOne(queryUserWrapper);
         if (Objects.isNull(user)) {
             throw new DaMaiFrameException(BaseCode.NAME_PASSWORD_ERROR);
         }
+        //5. 登录成功，签发 Token 并缓存
         redisCache.set(RedisKeyBuild.createRedisKey(RedisKeyManage.USER_LOGIN,code,user.getId()),user,
                 tokenExpireTime,TimeUnit.MINUTES);
         userLoginVo.setUserId(userId);
