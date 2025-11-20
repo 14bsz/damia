@@ -143,6 +143,16 @@ public class OrderService extends ServiceImpl<OrderMapper, Order> {
         if (Objects.nonNull(oldOrder)) {
             throw new DaMaiFrameException(BaseCode.ORDER_EXIST);
         }
+        LambdaQueryWrapper<Order> duplicatePendingWrapper =
+                Wrappers.lambdaQuery(Order.class)
+                        .eq(Order::getUserId, orderCreateDto.getUserId())
+                        .eq(Order::getProgramId, orderCreateDto.getProgramId())
+                        .eq(Order::getOrderStatus, OrderStatus.NO_PAY.getCode());
+        Long duplicatePendingCount = orderMapper.selectCount(duplicatePendingWrapper);
+        if (duplicatePendingCount != null && duplicatePendingCount > 0) {
+            log.info("重复订单校验失败 userId:{} programId:{}", orderCreateDto.getUserId(), orderCreateDto.getProgramId());
+            throw new DaMaiFrameException(BaseCode.PENDING_SAME_PROGRAM_ORDER_EXIST);
+        }
         Order order = new Order();
         BeanUtil.copyProperties(orderCreateDto,order);
         order.setDistributionMode("电子票");
@@ -587,6 +597,16 @@ public class OrderService extends ServiceImpl<OrderMapper, Order> {
         AccountOrderCountVo accountOrderCountVo = new AccountOrderCountVo();
         accountOrderCountVo.setCount(orderMapper.accountOrderCount(accountOrderCountDto.getUserId(),
                 accountOrderCountDto.getProgramId()));
+        return accountOrderCountVo;
+    }
+    
+    public AccountOrderCountVo accountPendingOrderCount(AccountOrderCountDto accountOrderCountDto) {
+        AccountOrderCountVo accountOrderCountVo = new AccountOrderCountVo();
+        Long count = orderMapper.selectCount(Wrappers.lambdaQuery(Order.class)
+                .eq(Order::getUserId, accountOrderCountDto.getUserId())
+                .eq(Order::getProgramId, accountOrderCountDto.getProgramId())
+                .eq(Order::getOrderStatus, OrderStatus.NO_PAY.getCode()));
+        accountOrderCountVo.setCount(count == null ? 0 : count.intValue());
         return accountOrderCountVo;
     }
     

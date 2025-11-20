@@ -22,4 +22,9 @@ public class OrderClientFallback implements OrderClient {
     public ApiResponse<AccountOrderCountVo> accountOrderCount(final AccountOrderCountDto dto) {
         return ApiResponse.error(BaseCode.SYSTEM_ERROR);
     }
+    
+    @Override
+    public ApiResponse<AccountOrderCountVo> accountPendingOrderCount(final AccountOrderCountDto dto) {
+        return ApiResponse.error(BaseCode.SYSTEM_ERROR);
+    }
 }

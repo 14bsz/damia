@@ -78,6 +78,12 @@ public class OrderController {
         return ApiResponse.ok(orderService.accountOrderCount(accountOrderCountDto));
     }
     
+    @Operation(summary  = "账户下某个节目的待支付订单数量(不提供给前端调用，只允许内部program服务调用)")
+    @PostMapping(value = "/account/pending/order/count")
+    public ApiResponse<AccountOrderCountVo> accountPendingOrderCount(@Valid @RequestBody AccountOrderCountDto accountOrderCountDto) {
+        return ApiResponse.ok(orderService.accountPendingOrderCount(accountOrderCountDto));
+    }
+    
     @Operation(summary  = "查看缓存中的订单")
     @PostMapping(value = "/get/cache")
     public ApiResponse<String> getCache(@Valid @RequestBody OrderGetDto orderGetDto) {

@@ -32,4 +32,7 @@ public interface OrderClient {
      * */
     @PostMapping("/order/account/order/count")
     ApiResponse<AccountOrderCountVo> accountOrderCount(AccountOrderCountDto dto);
+    
+    @PostMapping("/order/account/pending/order/count")
+    ApiResponse<AccountOrderCountVo> accountPendingOrderCount(AccountOrderCountDto dto);
 }

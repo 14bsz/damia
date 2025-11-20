@@ -64,6 +64,14 @@ export function getOrderCacheApi(data) {
     })
 }
 
+export function pendingOrderCountApi(data) {
+    return request({
+        url: '/damai/order/order/account/pending/order/count',
+        method: 'post',
+        data: data
+    })
+}
+
 /**
  * 订单支付
  * @param params

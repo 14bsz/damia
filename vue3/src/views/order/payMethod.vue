@@ -1,7 +1,7 @@
 <template>
   <div class="app-container">
     <div class="pay-header">
-      <div class="back"><el-icon><ArrowLeftBold /></el-icon></div>
+      <div class="back" role="button" aria-label="返回上一页" tabindex="0" @click="goBack" @keydown.enter="goBack" @keydown.space.prevent="goBack" @touchstart.prevent="goBack"><el-icon><ArrowLeftBold /></el-icon></div>
       <div class="content"><img :src="pay" alt=""><span>支付宝付款</span></div>
     </div>
     <div class="pay-section">
@@ -40,11 +40,25 @@ function continuePay() {
     'channel':'alipay',
     'payBillType':1
   }
+  console.log('支付参数:', orderPayParams);
   orderPayApi(orderPayParams).then(response => {
-    //将支付宝返回的表单字符串写在浏览器中，表单会自动触发submit提交
-    document.write(response.data);
-
-  })
+    console.log('支付接口返回:', response);
+    // 优先判断后端是否返回错误码或 message
+    if (response.code && response.code !== '0') {
+      ElMessage.error(response.message || '支付接口异常');
+      return;
+    }
+    if (typeof response.data === 'string' && response.data.startsWith('<form')) {
+      document.write(response.data);
+    } else if (typeof response.data === 'string' && response.data.startsWith('http')) {
+      window.location.href = response.data;
+    } else {
+      ElMessage.error('支付链接获取失败，请稍后重试');
+    }
+  }).catch(err => {
+    console.error('支付接口异常:', err);
+    ElMessage.error('支付接口异常，请稍后重试');
+  });
 }
 
 //跳转后的接收值
@@ -53,13 +67,34 @@ onMounted(() => {
 })
 //订单详情方法
 function getOrderDetail() {
-  orderNumber.value = history.state.orderNumber;
+  // 优先从history.state获取，其次从localStorage，再其次从route.query
+  let tempOrderNumber = '';
+  if (history.state && history.state.orderNumber) {
+    tempOrderNumber = history.state.orderNumber;
+  } else if (localStorage.getItem('orderNumber')) {
+    tempOrderNumber = localStorage.getItem('orderNumber');
+  } else if (route.query && route.query.orderNumber) {
+    tempOrderNumber = route.query.orderNumber;
+  }
+  orderNumber.value = tempOrderNumber;
   const orderDetailParams = {'orderNumber': orderNumber.value}
   //传值-订单号
   localStorage.setItem('orderNumber',orderNumber.value)
   getOrderDetailApi(orderDetailParams).then(response => {
     orderDetailData.value = response.data;
   })
+}
+
+function goBack(){
+  try{
+    if (window.history.length > 1){
+      router.back()
+    } else {
+      router.push('/index')
+    }
+  }catch(e){
+    console.error('返回上一页失败:', e)
+  }
 }
 
 </script>
@@ -81,6 +116,11 @@ function getOrderDetail() {
 
     .back {
       width: 40px;
+      cursor: pointer;
+      user-select: none;
+      transition: transform .15s ease, opacity .15s ease;
+      &:hover{ opacity: .85 }
+      &:active{ transform: translateY(1px) }
       .el-icon{
         font-size: 40px;
       }
