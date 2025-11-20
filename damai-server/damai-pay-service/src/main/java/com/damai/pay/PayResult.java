@@ -7,10 +7,17 @@ import lombok.Data;
  * @description: 支付结果
  **/
 @Data
-@AllArgsConstructor
 public class PayResult {
-    
+
     private final boolean success;
-    
+
     private final String body;
+
+    private final String outTradeNo;
+
+    public PayResult(boolean success, String body, String outTradeNo) {
+        this.success = success;
+        this.body = body;
+        this.outTradeNo = outTradeNo;
+    }
 }

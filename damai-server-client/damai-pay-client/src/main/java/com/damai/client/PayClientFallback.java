@@ -17,7 +17,7 @@ import org.springframework.stereotype.Component;
 public class PayClientFallback implements PayClient{
     
     @Override
-    public ApiResponse<String> commonPay(final PayDto payDto) {
+    public ApiResponse<com.damai.vo.PayPageVo> commonPay(final PayDto payDto) {
         return ApiResponse.error(BaseCode.SYSTEM_ERROR);
     }
     

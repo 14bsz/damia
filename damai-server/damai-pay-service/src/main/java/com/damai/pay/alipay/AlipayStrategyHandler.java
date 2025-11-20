@@ -67,7 +67,7 @@ public class AlipayStrategyHandler implements PayStrategyHandler {
             bizContent.put("product_code", "FAST_INSTANT_TRADE_PAY");
             request.setBizContent(bizContent.toString());
             AlipayTradePagePayResponse response = alipayClient.pageExecute(request,"POST");
-            return new PayResult(response.isSuccess(),response.getBody());
+            return new PayResult(response.isSuccess(),response.getBody(), outTradeNo);
         }catch (Exception e) {
            log.error("alipay pay error",e);
            throw new DaMaiFrameException(BaseCode.PAY_ERROR);

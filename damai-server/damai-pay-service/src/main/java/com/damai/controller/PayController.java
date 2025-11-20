@@ -32,7 +32,7 @@ public class PayController {
     
     @Operation(summary  = "支付")
     @PostMapping(value = "/common/pay")
-    public ApiResponse<String> commonPay(@Valid @RequestBody PayDto payDto) {
+    public ApiResponse<com.damai.vo.PayPageVo> commonPay(@Valid @RequestBody PayDto payDto) {
         return ApiResponse.ok(payService.commonPay(payDto));
     }
     

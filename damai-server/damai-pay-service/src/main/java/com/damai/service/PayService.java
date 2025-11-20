@@ -66,7 +66,7 @@ public class PayService {
      * */
     @ServiceLock(name = COMMON_PAY,keys = {"#payDto.orderNumber"})
     @Transactional(rollbackFor = Exception.class)
-    public String commonPay(PayDto payDto) {
+    public com.damai.vo.PayPageVo commonPay(PayDto payDto) {
         LambdaQueryWrapper<PayBill> payBillLambdaQueryWrapper = 
                 Wrappers.lambdaQuery(PayBill.class).eq(PayBill::getOutOrderNo, payDto.getOrderNumber());
         PayBill payBill = payBillMapper.selectOne(payBillLambdaQueryWrapper);
@@ -74,23 +74,29 @@ public class PayService {
             throw new DaMaiFrameException(BaseCode.PAY_BILL_IS_NOT_NO_PAY);
         }
         PayStrategyHandler payStrategyHandler = payStrategyContext.get(payDto.getChannel());
-        PayResult pay = payStrategyHandler.pay(String.valueOf(payDto.getOrderNumber()), payDto.getPrice(), 
+        String outTradeNo = String.valueOf(payDto.getOrderNumber()) + "_" + System.currentTimeMillis();
+        PayResult pay = payStrategyHandler.pay(outTradeNo, payDto.getPrice(), 
                 payDto.getSubject(),payDto.getNotifyUrl(),payDto.getReturnUrl());
         if (pay.isSuccess()) {
-            payBill = new PayBill();
-            payBill.setId(uidGenerator.getUid());
-            payBill.setOutOrderNo(String.valueOf(payDto.getOrderNumber()));
-            payBill.setPayChannel(payDto.getChannel());
-            payBill.setPayScene("生产");
-            payBill.setSubject(payDto.getSubject());
-            payBill.setPayAmount(payDto.getPrice());
-            payBill.setPayBillType(payDto.getPayBillType());
-            payBill.setPayBillStatus(PayBillStatus.NO_PAY.getCode());
-            payBill.setPayTime(DateUtils.now());
-            payBillMapper.insert(payBill);
+            if (Objects.isNull(payBill)) {
+                payBill = new PayBill();
+                payBill.setId(uidGenerator.getUid());
+                payBill.setOutOrderNo(String.valueOf(payDto.getOrderNumber()));
+                payBill.setPayChannel(payDto.getChannel());
+                payBill.setPayScene("生产");
+                payBill.setSubject(payDto.getSubject());
+                payBill.setPayAmount(payDto.getPrice());
+                payBill.setPayBillType(payDto.getPayBillType());
+                payBill.setPayBillStatus(PayBillStatus.NO_PAY.getCode());
+                payBill.setPayTime(DateUtils.now());
+                payBillMapper.insert(payBill);
+            }
         }
         
-        return pay.getBody();
+        com.damai.vo.PayPageVo vo = new com.damai.vo.PayPageVo();
+        vo.setBody(pay.getBody());
+        vo.setOutTradeNo(pay.getOutTradeNo());
+        return vo;
     }
     
     @Transactional(rollbackFor = Exception.class)
@@ -105,8 +111,10 @@ public class PayService {
             notifyVo.setPayResult(ALIPAY_NOTIFY_FAILURE_RESULT);
             return notifyVo;
         }
+        String aliOutTradeNo = params.get("out_trade_no");
+        String originOrderNo = aliOutTradeNo.contains("_") ? aliOutTradeNo.substring(0, aliOutTradeNo.indexOf("_")) : aliOutTradeNo;
         LambdaQueryWrapper<PayBill> payBillLambdaQueryWrapper =
-                Wrappers.lambdaQuery(PayBill.class).eq(PayBill::getOutOrderNo, params.get("out_trade_no"));
+                Wrappers.lambdaQuery(PayBill.class).eq(PayBill::getOutOrderNo, originOrderNo);
         PayBill payBill = payBillMapper.selectOne(payBillLambdaQueryWrapper);
         if (Objects.isNull(payBill)) {
             log.error("账单为空 notifyDto : {}",JSON.toJSONString(notifyDto));
@@ -139,7 +147,7 @@ public class PayService {
         PayBill updatePayBill = new PayBill();
         updatePayBill.setPayBillStatus(PayBillStatus.PAY.getCode());
         LambdaUpdateWrapper<PayBill> payBillLambdaUpdateWrapper =
-                Wrappers.lambdaUpdate(PayBill.class).eq(PayBill::getOutOrderNo, params.get("out_trade_no"));
+                Wrappers.lambdaUpdate(PayBill.class).eq(PayBill::getOutOrderNo, originOrderNo);
         payBillMapper.update(updatePayBill,payBillLambdaUpdateWrapper);
         notifyVo.setOutTradeNo(payBill.getOutOrderNo());
         notifyVo.setPayResult(ALIPAY_NOTIFY_SUCCESS_RESULT);
@@ -158,9 +166,10 @@ public class PayService {
         }
         BigDecimal totalAmount = tradeResult.getTotalAmount();
         String outTradeNo = tradeResult.getOutTradeNo();
+        String originOrderNo = outTradeNo.contains("_") ? outTradeNo.substring(0, outTradeNo.indexOf("_")) : outTradeNo;
         Integer payBillStatus = tradeResult.getPayBillStatus();
         LambdaQueryWrapper<PayBill> payBillLambdaQueryWrapper = 
-                Wrappers.lambdaQuery(PayBill.class).eq(PayBill::getOutOrderNo, outTradeNo);
+                Wrappers.lambdaQuery(PayBill.class).eq(PayBill::getOutOrderNo, originOrderNo);
         PayBill payBill = payBillMapper.selectOne(payBillLambdaQueryWrapper);
         if (Objects.isNull(payBill)) {
             log.error("账单为空 tradeCheckDto : {}",JSON.toJSONString(tradeCheckDto));
@@ -178,7 +187,7 @@ public class PayService {
             updatePayBill.setId(payBill.getId());
             updatePayBill.setPayBillStatus(payBillStatus);
             LambdaUpdateWrapper<PayBill> payBillLambdaUpdateWrapper =
-                    Wrappers.lambdaUpdate(PayBill.class).eq(PayBill::getOutOrderNo, outTradeNo);
+                    Wrappers.lambdaUpdate(PayBill.class).eq(PayBill::getOutOrderNo, originOrderNo);
             payBillMapper.update(updatePayBill,payBillLambdaUpdateWrapper);
             return tradeCheckVo;
         }

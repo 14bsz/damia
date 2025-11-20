@@ -1,10 +1,10 @@
 <template>
-<!--订单管理-->
+  <!--订单管理-->
   <Header></Header>
   <div class="red-line"></div>
   <div class="section">
     <MenuSideBar class="sidebarMenu" activeIndex="5"></MenuSideBar>
-    <div class="right-section" >
+    <div class="right-section">
       <table>
         <thead>
         <tr>
@@ -12,44 +12,53 @@
           <th style="width: 144px">票品张数</th>
           <th style="width: 130px">订单金额</th>
           <th style="width: 130px">交易状态</th>
-          <th  style="width: 210px">交易操作</th>
+          <th style="width: 210px">交易操作</th>
         </tr>
         </thead>
       </table>
       <div class="orderBox" v-for="(order, index) in orderList" :key="index">
-          <div class="num">订单号: {{order.orderNumber}}</div>
-          <ul>
-            <li>
+        <div class="num">订单号: {{ order.orderNumber }}</div>
+        <ul>
+          <li>
             <img :src="order.programItemPicture" alt="">
             <div class="project">
-              <div class="title">{{order.programTitle}}</div>
-              <div class="content">演出场次: {{order.programShowTime}}</div>
-              <div class="content">演出场馆: {{order.programPlace}}</div>
+              <div class="title">{{ order.programTitle }}</div>
+              <div class="content">演出场次: {{ order.programShowTime }}</div>
+              <div class="content">演出场馆: {{ order.programPlace }}</div>
             </div>
           </li>
-            <li>{{ order.ticketCount }}</li>
-            <li><div class="price">￥ {{ order.orderPrice }}</div><div class="money">(含运费￥0.00)</div></li>
-            <li>
-              <div class="orderStatus">{{ getOrderStatus(order.orderStatus) }}</div>
-              <router-link class=" link" :to="{name:'orderDetail',params:{orderNumber:order.orderNumber}}"  >
-                订单详情
-              </router-link>
-            </li>
-            <li>
-              <transition name="fade">
-                <div class="btn-col" v-if="order.orderStatus == 1">
-                  <button class="order-btn pay" aria-label="支付订单" @click="goPay(order.orderNumber)">支付</button>
-                  <button class="order-btn cancel" aria-label="取消订单" @click="openCancelDialog(order.orderNumber)">取消订单</button>
-                </div>
-              </transition>
-            </li>
-          </ul>
-          </div>
+          <li>{{ order.ticketCount }}</li>
+          <li>
+            <div class="price">￥ {{ order.orderPrice }}</div>
+            <div class="money">(含运费￥0.00)</div>
+          </li>
+          <li>
+            <div class="orderStatus">{{ getOrderStatus(order.orderStatus) }}</div>
+          </li>
+          <li>
+            <div class="btn-col">
+              <template v-if="order.orderStatus == 1">
+                <button class="order-btn pay" aria-label="支付订单" @click="goPay(order.orderNumber)">支付</button>
+                <button class="order-btn cancel" aria-label="取消订单" @click="openCancelDialog(order.orderNumber)">
+                  取消订单
+                </button>
+              </template>
+              <template v-else>
+                <router-link
+                    class="link-detail"
+                    :to="{name:'orderDetail', params:{orderNumber:order.orderNumber}}">
+                  订单详情
+                </router-link>
+              </template>
+            </div>
+          </li>
+        </ul>
+      </div>
 
       <el-dialog
-        v-model="cancelDialogVisible"
-        aria-label="确认取消订单"
-        class="dm-cancel-dialog"
+          v-model="cancelDialogVisible"
+          aria-label="确认取消订单"
+          class="dm-cancel-dialog"
       >
         <div class="content">您确定要取消此订单吗？</div>
         <template #footer>
@@ -60,10 +69,9 @@
         </template>
       </el-dialog>
 
-  </div>
+    </div>
   </div>
   <Footer class="foot"></Footer>
-
 
 
 </template>
@@ -84,17 +92,17 @@ const orderList = ref(0)
 const useUser = useUserStore()
 //订单列表入参
 const orderListParams = reactive({
-  userId:useUser.userId
+  userId: useUser.userId
 })
 
 //订单列表方法
 const getOrderList = () => {
   getOrderListApi(orderListParams).then(response => {
-    orderList.value= response.data;
+    orderList.value = response.data;
   })
 }
 
-function getOrderStatus(orderStatus){
+function getOrderStatus(orderStatus) {
   if (orderStatus == 1) {
     return '未支付';
   }
@@ -113,42 +121,42 @@ const cancelDialogVisible = ref(false)
 const targetOrderNumber = ref('')
 const targetOrderIndex = ref(-1)
 
-function openCancelDialog(orderNumber){
+function openCancelDialog(orderNumber) {
   targetOrderNumber.value = orderNumber
   targetOrderIndex.value = orderList.value?.findIndex?.(o => o.orderNumber === orderNumber) ?? -1
   cancelDialogVisible.value = true
 }
 
-function confirmCancel(){
+function confirmCancel() {
   const orderNumberParams = {orderNumber: targetOrderNumber.value}
   cancelOrderApi(orderNumberParams).then(response => {
     if (response.code == '0') {
-      ElMessage({ message: '取消成功', type: 'success' })
+      ElMessage({message: '取消成功', type: 'success'})
       if (targetOrderIndex.value > -1) {
         orderList.value[targetOrderIndex.value].orderStatus = 4
       }
       cancelDialogVisible.value = false
     } else {
-      ElMessage({ message: response.message, type: 'error' })
+      ElMessage({message: response.message, type: 'error'})
     }
   })
 }
 
-function closeCancelDialog(){
+function closeCancelDialog() {
   cancelDialogVisible.value = false
 }
 
 const router = useRouter();
+
 function goPay(orderNumber) {
   // 跳转到支付页面，传递订单编号
-  router.push({ path: '/order/payMethod', state: { orderNumber } })
+  router.push({path: '/order/payMethod', state: {orderNumber}})
 }
 
 onMounted(() => {
   getOrderList()
 })
 </script>
-
 
 
 <style scoped lang="scss">
@@ -172,8 +180,8 @@ onMounted(() => {
     float: right;
     overflow-y: scroll;
 
-    table{
-      width:940px;
+    table {
+      width: 940px;
       -webkit-box-sizing: border-box;
       box-sizing: border-box;
       border-left: 1px solid transparent;
@@ -188,23 +196,27 @@ onMounted(() => {
 
 
     }
-    .orderBox{
+
+    .orderBox {
       border: 1px solid #ebebeb;
       width: 100%;
       height: 150px;
       margin-bottom: 20px;
-      .num{
+
+      .num {
         font-size: 12px;
         padding: 14px 0 14px 20px;
         background: #f7f7f7;
         color: #000;
         border-bottom: 1px solid #ebebeb;
       }
-      ul{
+
+      ul {
         margin: 0;
         padding: 0;
         list-style: none;
-        li{
+
+        li {
           display: flex;
           flex-direction: row;
           float: left;
@@ -212,21 +224,24 @@ onMounted(() => {
           background: #ffffff;
           height: 100px;
         }
-        li:first-child{
+
+        li:first-child {
           width: 390px;
           padding-left: 20px;
-          padding-top:13px;
+          padding-top: 13px;
           border-right: 1px solid #ebebeb;
-          img{
+
+          img {
             width: 62px;
             height: 80px;
             float: left;
           }
-          .project{
+
+          .project {
             width: 293px;
             padding-left: 18px;
 
-            .title{
+            .title {
               width: 210px;
               color: #4a4a4a;
               margin-bottom: 4px;
@@ -236,7 +251,8 @@ onMounted(() => {
               text-overflow: ellipsis;
 
             }
-            .content{
+
+            .content {
               color: #9b9b9b;
               margin-bottom: 2px;
             }
@@ -244,61 +260,72 @@ onMounted(() => {
           }
 
         }
-        li:nth-child(2){
+
+        li:nth-child(2) {
           width: 100px;
           border-right: 1px solid #ebebeb;
           text-align: center;
           padding: 48px;
         }
-        li:nth-child(3){
+
+        li:nth-child(3) {
           width: 133px;
           display: block;
           padding-top: 32px;
           border-right: 1px solid #ebebeb;
           text-align: center;
-          .price{
+
+          .price {
             width: 100%;
           }
-          .money{
+
+          .money {
             width: 100%;
           }
         }
-        li:nth-child(4){
+
+        li:nth-child(4) {
           width: 133px;
-          display: block;
-          padding-top: 32px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
           border-right: 1px solid #ebebeb;
           text-align: center;
-          .orderStatus{
+
+          .orderStatus {
             width: 100%;
 
           }
 
         }
-        li:nth-child(5){
+
+        li:nth-child(5) {
           width: 168px;
           display: flex;
-          align-items: center;          // 水平居中
-          justify-content: center;      // 垂直居中
-          .btn-col{
+          align-items: center; // 水平居中
+          justify-content: center; // 垂直居中
+          .btn-col {
             display: flex;
-            flex-direction: column;     // 上下排列
-            gap: 10px;                  // 按钮间距
+            flex-direction: column; // 上下排列
+            gap: 10px; // 按钮间距
           }
-          .order-btn{
-            width: 98px;                // 同宽
-            height: 30px;               // 同高
+
+          .order-btn {
+            width: 98px; // 同宽
+            height: 30px; // 同高
             line-height: 1;
             text-align: center;
             font-size: 14px;
             border-radius: 20px;
             border: none;
             cursor: pointer;
-            &.pay{
+
+            &.pay {
               background-color: rgba(255, 55, 29, 0.85);
               color: #fff;
             }
-            &.cancel{
+
+            &.cancel {
               background-color: #fff;
               color: rgba(255, 55, 29, 0.85);
               border: 1px solid rgba(255, 55, 29, 0.85);
@@ -321,6 +348,7 @@ onMounted(() => {
 :deep(.el-input__wrapper) {
   flex-grow: 0.3
 }
+
 .link {
   text-decoration: none; /* 去除下划线 */
 }
@@ -328,48 +356,70 @@ onMounted(() => {
 .fade-enter-active, .fade-leave-active {
   transition: all .2s ease;
 }
+
 .fade-enter-from, .fade-leave-to {
   opacity: 0;
   transform: translateY(-4px);
 }
 
-:deep(.dm-cancel-dialog){
+:deep(.dm-cancel-dialog) {
   width: min(560px, 92vw);
   background-color: #fff;
   border-radius: 16px;
-  box-shadow: 0 12px 28px rgba(0,0,0,.12);
+  box-shadow: 0 12px 28px rgba(0, 0, 0, .12);
   animation: dmDialogEnter .22s ease;
 }
-:deep(.dm-cancel-dialog .el-dialog__header){
+
+:deep(.dm-cancel-dialog .el-dialog__header) {
   padding-bottom: 0;
 }
-:deep(.dm-cancel-dialog .el-dialog__body){
+
+:deep(.dm-cancel-dialog .el-dialog__body) {
   padding-top: 6px;
 }
-:deep(.dm-cancel-dialog .content){
+
+:deep(.dm-cancel-dialog .content) {
   color: #111;
   font-size: 16px;
   line-height: 24px;
   text-align: center;
 }
-.dialog-footer{
+
+.dialog-footer {
   display: flex;
   justify-content: center;
   gap: 12px;
 }
-.dm-primary{
+
+.dm-primary {
   background: #fff;
   border: 1px solid #e5e7eb;
   color: rgba(255, 55, 29, 0.85);
 }
-.dm-secondary{
+
+.dm-secondary {
   background: #fff;
   border: 1px solid #e5e7eb;
   color: #111;
 }
+
+.link-detail {
+  color: #666;
+  font-size: 14px;
+  text-decoration: underline;
+  transition: color .2s;
+  &:hover { color: rgba(255,55,29,.85); }
+}
+
 @keyframes dmDialogEnter {
-  0% { opacity: 0; transform: translateY(-6px); }
-  100% { opacity: 1; transform: translateY(0); }
+  0% {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 

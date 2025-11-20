@@ -83,7 +83,9 @@ public enum RedisKeyManage {
     
     LOGIN_USER_EMAIL_ERROR("d_mai_login_user_email_error_%s","登录错误的用户邮箱key","登录错误的用户邮箱次数","k"),
     
-    AREA_PROVINCE_LIST("d_mai_area_province_list","省地区集合","省地区集合数据","k")
+    AREA_PROVINCE_LIST("d_mai_area_province_list","省地区集合","省地区集合数据","k"),
+
+    PAY_OUT_TRADE_NO("d_mai_pay_out_trade_no_%s","订单支付out_trade_no","out_trade_no","k")
     ;
 
     /**

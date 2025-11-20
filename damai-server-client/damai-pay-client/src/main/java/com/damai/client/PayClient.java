@@ -25,7 +25,7 @@ public interface PayClient {
      * @return 结果
      * */
     @PostMapping(value = "/pay/common/pay")
-    ApiResponse<String> commonPay(PayDto dto);
+    ApiResponse<com.damai.vo.PayPageVo> commonPay(PayDto dto);
     /**
      * 回调
      * @param dto 参数

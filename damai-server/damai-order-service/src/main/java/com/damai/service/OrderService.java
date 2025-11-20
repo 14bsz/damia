@@ -206,11 +206,17 @@ public class OrderService extends ServiceImpl<OrderMapper, Order> {
             throw new DaMaiFrameException(BaseCode.PAY_PRICE_NOT_EQUAL_ORDER_PRICE);
         }
         PayDto payDto = getPayDto(orderPayDto, orderNumber);
-        ApiResponse<String> payResponse = payClient.commonPay(payDto);
+        ApiResponse<com.damai.vo.PayPageVo> payResponse = payClient.commonPay(payDto);
         if (!Objects.equals(payResponse.getCode(), BaseCode.SUCCESS.getCode())) {
             throw new DaMaiFrameException(payResponse);
         }
-        return payResponse.getData();
+        com.damai.vo.PayPageVo payPageVo = Optional.ofNullable(payResponse.getData())
+                .orElseThrow(() -> new DaMaiFrameException(BaseCode.RPC_RESULT_DATA_EMPTY));
+
+        redisCache.set(RedisKeyBuild.createRedisKey(com.damai.core.RedisKeyManage.PAY_OUT_TRADE_NO, orderNumber),
+                payPageVo.getOutTradeNo(),15, TimeUnit.MINUTES);
+
+        return payPageVo.getBody();
     }
     
     private PayDto getPayDto(OrderPayDto orderPayDto, Long orderNumber) {
@@ -260,7 +266,10 @@ public class OrderService extends ServiceImpl<OrderMapper, Order> {
         }
         
         TradeCheckDto tradeCheckDto = new TradeCheckDto();
-        tradeCheckDto.setOutTradeNo(String.valueOf(orderPayCheckDto.getOrderNumber()));
+        String cachedOutTradeNo = redisCache.get(RedisKeyBuild.createRedisKey(com.damai.core.RedisKeyManage.PAY_OUT_TRADE_NO,
+                orderPayCheckDto.getOrderNumber()), String.class);
+        String outTradeNoForCheck = StringUtil.isEmpty(cachedOutTradeNo) ? String.valueOf(orderPayCheckDto.getOrderNumber()) : cachedOutTradeNo;
+        tradeCheckDto.setOutTradeNo(outTradeNoForCheck);
         tradeCheckDto.setChannel(Optional.ofNullable(PayChannel.getRc(orderPayCheckDto.getPayChannelType()))
                 .map(PayChannel::getValue).orElseThrow(() -> new DaMaiFrameException(BaseCode.PAY_CHANNEL_NOT_EXIST)));
         ApiResponse<TradeCheckVo> tradeCheckVoApiResponse = payClient.tradeCheck(tradeCheckDto);
@@ -301,22 +310,22 @@ public class OrderService extends ServiceImpl<OrderMapper, Order> {
             params = StringUtil.convertQueryStringToMap(requestBody);
         }
         log.info("收到支付宝回调通知 params : {}",JSON.toJSONString(params));
-        String outTradeNo = params.get("out_trade_no");
-        if (StringUtil.isEmpty(outTradeNo)) {
+        String aliOutTradeNo = params.get("out_trade_no");
+        if (StringUtil.isEmpty(aliOutTradeNo)) {
             return "failure";
         }
-        
+        String originOrderNo = aliOutTradeNo.contains("_") ? aliOutTradeNo.substring(0, aliOutTradeNo.indexOf("_")) : aliOutTradeNo;
         RLock lock = serviceLockTool.getLock(LockType.Reentrant, ORDER_PAY_NOTIFY_CHECK,
-                new String[]{outTradeNo});
+                new String[]{originOrderNo});
         lock.lock();
         try {
-            Order order = orderMapper.selectOne(Wrappers.lambdaQuery(Order.class).eq(Order::getOrderNumber, Long.parseLong(outTradeNo)));
+            Order order = orderMapper.selectOne(Wrappers.lambdaQuery(Order.class).eq(Order::getOrderNumber, Long.parseLong(originOrderNo)));
             if (Objects.isNull(order)) {
                 throw new DaMaiFrameException(BaseCode.ORDER_NOT_EXIST);
             }
             if (Objects.equals(order.getOrderStatus(), OrderStatus.CANCEL.getCode())) {
                 RefundDto refundDto = new RefundDto();
-                refundDto.setOrderNumber(outTradeNo);
+                refundDto.setOrderNumber(originOrderNo);
                 refundDto.setAmount(order.getOrderPrice());
                 refundDto.setChannel("alipay");
                 refundDto.setReason("延迟订单关闭");
@@ -325,7 +334,7 @@ public class OrderService extends ServiceImpl<OrderMapper, Order> {
                     Order updateOrder = new Order();
                     updateOrder.setEditTime(DateUtils.now());
                     updateOrder.setOrderStatus(OrderStatus.REFUND.getCode());
-                    orderMapper.update(updateOrder,Wrappers.lambdaUpdate(Order.class).eq(Order::getOrderNumber, outTradeNo));
+                    orderMapper.update(updateOrder,Wrappers.lambdaUpdate(Order.class).eq(Order::getOrderNumber, originOrderNo));
                 }else {
                     log.error("pay服务退款失败 dto : {} response : {}",JSON.toJSONString(refundDto),JSON.toJSONString(response));
                 }
@@ -545,10 +554,7 @@ public class OrderService extends ServiceImpl<OrderMapper, Order> {
                 orderTicketUserList.stream().collect(Collectors.groupingBy(OrderTicketUser::getOrderPrice));
         orderTicketUserMap.forEach((k,v) -> {
             OrderTicketInfoVo orderTicketInfoVo = new OrderTicketInfoVo();
-            String seatInfo = "暂无座位信息";
-            if (order.getProgramPermitChooseSeat().equals(BusinessStatus.YES.getCode())) {
-                seatInfo = v.stream().map(OrderTicketUser::getSeatInfo).collect(Collectors.joining(","));
-            }
+            String seatInfo = v.stream().map(OrderTicketUser::getSeatInfo).collect(Collectors.joining(","));
             orderTicketInfoVo.setSeatInfo(seatInfo);
             orderTicketInfoVo.setPrice(v.get(0).getOrderPrice());
             orderTicketInfoVo.setQuantity(v.size());
