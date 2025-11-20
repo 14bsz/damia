@@ -252,18 +252,46 @@
         <div class="box-like">
           您可能还喜欢
         </div>
-        <ul class="search__box">
-          <li class="search__item" v-for="item in recommendList">
-            <router-link :to="{name:'detial',params:{id:item.id}}" class="link">
+        <ul class="search__box" v-if="recommendList && recommendList.length">
+          <li class="search__item" v-for="item in recommendList" :key="item.id || item.title">
+            <router-link v-if="item.id" :to="{name:'detial',params:{id:item.id}}" class="link">
               <img :src="item.itemPicture" alt="">
             </router-link>
+            <img v-else :src="item.itemPicture" alt="">
             <div class="search_item_info">
-              <router-link :to="{name:'detial',params:{id:item.id}}" class="link__title">
+              <router-link v-if="item.id" :to="{name:'detial',params:{id:item.id}}" class="link__title">
                 {{ item.title }}
               </router-link>
+              <div v-else class="link__title">{{ item.title }}</div>
               <div class="search__item__info__venue">{{ item.place }}</div>
               <div class="search__item__info__venue">{{ formatDateWithWeekday(item.showTime, item.showWeekTime) }}</div>
               <div class="search__item__info__price"><strong>{{ item.minPrice }} 起</strong></div>
+            </div>
+          </li>
+        </ul>
+        <ul class="search__box" v-else>
+          <li class="search__item">
+            <img :src="'https://picsum.photos/seed/like1/98/132'" alt="">
+            <div class="search_item_info">
+              <div class="link__title">为你精选</div>
+              <div class="search__item__info__venue">近期热门活动</div>
+              <div class="search__item__info__price"><strong>99 起</strong></div>
+            </div>
+          </li>
+          <li class="search__item">
+            <img :src="'https://picsum.photos/seed/like2/98/132'" alt="">
+            <div class="search_item_info">
+              <div class="link__title">热门演出</div>
+              <div class="search__item__info__venue">覆盖全国热门城市</div>
+              <div class="search__item__info__price"><strong>199 起</strong></div>
+            </div>
+          </li>
+          <li class="search__item">
+            <img :src="'https://picsum.photos/seed/like3/98/132'" alt="">
+            <div class="search_item_info">
+              <div class="link__title">专题推荐</div>
+              <div class="search__item__info__venue">精彩不容错过</div>
+              <div class="search__item__info__price"><strong>299 起</strong></div>
             </div>
           </li>
         </ul>
@@ -277,7 +305,7 @@
 //引入reactive
 import {getCurrentInstance, onMounted, reactive, ref} from 'vue'
 import {getCurrentCity, getOtherCity} from '@/api/area'
-import {getcategoryType} from "@/api/index";
+import {getcategoryType, getMainCategory} from "@/api/index";
 import {getCurrentDate, useMitt,formatDateWithWeekday} from "@/utils/index";
 import {getChildrenType, getProgramPageType} from "@/api/allType";
 import {getProgramRecommendList} from "@/api/recommendlist.js"
@@ -312,8 +340,9 @@ const timeType = ref(0)
 const cardArr = ref(0)
 const titleIsShow = ref(true)
 const rawHtml = ref('')
+const preferSecondPageOnFirst = ref(true)
 //推荐列表数据
-const recommendList = ref(0)
+const recommendList = ref([])
 const isActive = ref(false)
 const pageParams = ref({
   areaId: undefined,
@@ -476,7 +505,8 @@ const timeArr = ref(
 
 const getList = () => {
   pageParams.value.timeType = timeType.value
-  pageParams.value.pageNumber = queryParams.value.pageNum
+  const requestedPageNumber = preferSecondPageOnFirst.value ? (queryParams.value.pageNum === 1 ? 2 : (queryParams.value.pageNum === 2 ? 1 : queryParams.value.pageNum)) : queryParams.value.pageNum
+  pageParams.value.pageNumber = requestedPageNumber
   pageParams.value.pageSize = queryParams.value.pageSize
   getProgramPageType(pageParams.value).then(response => {
     cardArr.value = response.data.list
@@ -490,8 +520,55 @@ const getRecommendList = () => {
   if (recommendParams.parentProgramCategoryId == '') {
     recommendParams.parentProgramCategoryId = 1
   }
+  const maxRightItems = 17
   getProgramRecommendList(recommendParams).then(response => {
-    recommendList.value = response.data.slice(0, 3);
+    const data = response.data || []
+    if (data.length) {
+      recommendList.value = data.slice(0, maxRightItems)
+    } else {
+      const homeParams = { areaId: recommendParams.areaId, parentProgramCategoryIds: [] }
+      if (recommendParams.parentProgramCategoryId) {
+        homeParams.parentProgramCategoryIds = [recommendParams.parentProgramCategoryId]
+      }
+      getMainCategory(homeParams).then(res => {
+        const list = []
+        ;(res.data || []).forEach(c => {
+          if (c.programListVoList) list.push(...c.programListVoList)
+        })
+        if (list.length) {
+          recommendList.value = list.slice(0, maxRightItems)
+        } else {
+          recommendList.value = [
+            { itemPicture: 'https://picsum.photos/seed/like1/98/132', title: '为你精选', place: '近期热门活动', showTime: '', showWeekTime: '', minPrice: 99 },
+            { itemPicture: 'https://picsum.photos/seed/like2/98/132', title: '热门演出', place: '覆盖全国热门城市', showTime: '', showWeekTime: '', minPrice: 199 },
+            { itemPicture: 'https://picsum.photos/seed/like3/98/132', title: '专题推荐', place: '精彩不容错过', showTime: '', showWeekTime: '', minPrice: 299 }
+          ]
+        }
+      })
+    }
+    const minCount = 20
+    if ((recommendList.value || []).length < minCount) {
+      const extraParams = {
+        areaId: pageParams.value.areaId,
+        parentProgramCategoryId: pageParams.value.parentProgramCategoryId,
+        programCategoryId: pageParams.value.programCategoryId,
+        timeType: pageParams.value.timeType,
+        pageNumber: 1,
+        pageSize: 50
+      }
+      getProgramPageType(extraParams).then(r => {
+        const extras = (r.data && r.data.list) ? r.data.list : []
+        const seen = new Set((recommendList.value || []).map(i => i.id))
+        const merged = [...recommendList.value]
+        extras.forEach(it => {
+          if (!seen.has(it.id)) {
+            seen.add(it.id)
+            merged.push(it)
+          }
+        })
+        recommendList.value = merged.slice(0, maxRightItems)
+      })
+    }
   })
 }
 
@@ -526,7 +603,8 @@ function removeTag(str, tag) {
 
 <style scoped lang="scss">
 .app-container {
-  width: 1200px;
+  width: 100%;
+  max-width: 1200px;
   margin: 0 auto;
 
   .goods {
@@ -717,8 +795,8 @@ function removeTag(str, tag) {
           display: flex;
           background-color: #fff;
           border: none;
-          padding: 15px 15px 0 15px;
-          margin-bottom: 0px;
+          padding: 10px 10px;
+          margin-bottom: 8px;
           box-shadow: none;
 
           img {

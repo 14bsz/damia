@@ -107,7 +107,7 @@
             </div>
             <div id="projectDetial">
               <div class="proDetial">活动介绍</div>
-              <img :src="detailList.detail" alt="">
+              <div class="rich-content" v-html="formattedDetail"></div>
             </div>
             <div id="ticketNeed">
               <div class="proDetial">购票须知</div>
@@ -182,25 +182,49 @@
           <div class="box-like">
             为你推荐
           </div>
-          <ul class="search__box">
-            <li class="search__item" v-for="item in recommendList">
-                <router-link :to="{name:'detial',params:{id:item.id}}" class="link" >
+          <ul class="search__box" v-if="recommendList && recommendList.length">
+            <li class="search__item" v-for="item in recommendList" :key="item.id || item.title">
+                <router-link v-if="item.id" :to="{name:'detial',params:{id:item.id}}" class="link" >
                   <img :src="item.itemPicture" alt="">
-                  <router-view :key="route.fullpath" />
-
                 </router-link>
+                <img v-else :src="item.itemPicture" alt="">
 
               <div class="search_item_info">
-                  <router-link :to="{name:'detial',params:{id:item.id}}"  class="link__title" >
-                    <router-view :key="route.fullpath"/>
+                  <router-link v-if="item.id" :to="{name:'detial',params:{id:item.id}}"  class="link__title" >
                     {{ item.title }}
-
                   </router-link>
+                  <div v-else class="link__title">{{ item.title }}</div>
                 <div class="search__item__info__venue">{{ item.place }}</div>
                 <div class="search__item__info__venue">{{ formatDateWithWeekday(item.showTime, item.showWeekTime) }}</div>
                 <div class="search__item__info__price">￥<strong>{{ item.minPrice }}</strong> 起</div>
               </div>
 
+            </li>
+          </ul>
+          <ul class="search__box" v-else>
+            <li class="search__item">
+              <img :src="'https://picsum.photos/seed/rec1/98/132'" alt="">
+              <div class="search_item_info">
+                <div class="link__title">精选演出推荐</div>
+                <div class="search__item__info__venue">敬请期待更多精彩</div>
+                <div class="search__item__info__price"><strong>¥99 起</strong></div>
+              </div>
+            </li>
+            <li class="search__item">
+              <img :src="'https://picsum.photos/seed/rec2/98/132'" alt="">
+              <div class="search_item_info">
+                <div class="link__title">热门活动推荐</div>
+                <div class="search__item__info__venue">覆盖全国热门城市</div>
+                <div class="search__item__info__price"><strong>¥199 起</strong></div>
+              </div>
+            </li>
+            <li class="search__item">
+              <img :src="'https://picsum.photos/seed/rec3/98/132'" alt="">
+              <div class="search_item_info">
+                <div class="link__title">为你精选</div>
+                <div class="search__item__info__venue">近期上新不容错过</div>
+                <div class="search__item__info__price"><strong>¥299 起</strong></div>
+              </div>
             </li>
           </ul>
         </div>
@@ -219,9 +243,10 @@ import Footer from '@/components/footer/index'
 import {formatDateWithWeekday } from '@/utils/index'
 import {useRoute, useRouter} from 'vue-router'
 import {getProgramDetials} from '@/api/contentDetail'
-import {ref} from 'vue'
+import {ref, computed} from 'vue'
 import {   useMitt } from "@/utils/index";
 import {getProgramRecommendList} from "@/api/recommendlist.js"
+import {getMainCategory} from "@/api/index"
 const emitter = useMitt();
 //引入reactive
 import {reactive} from 'vue'
@@ -230,6 +255,32 @@ const router = useRouter();
 // 获取路由参数
 const paramValue = Number(route.params.id);
 const detailList = ref([])
+const formattedDetail = computed(() => {
+  const v = detailList.value && detailList.value.detail ? String(detailList.value.detail).trim() : ''
+  if (!v) {
+    return '<img src="https://picsum.photos/800/600" style="max-width:100%;height:auto;display:block;margin:0 auto;" />'
+  }
+  if (v.startsWith('<')) {
+    let html = v
+      .replace(/src="\/\/img\.alicdn\.com\//g, 'src="https://img.alicdn.com/')
+      .replace(/\swidth="[^"]*"/g, '')
+      .replace(/\sheight="[^"]*"/g, '')
+    html = html.replace(/<img\b(?![^>]*style=)/g, '<img style="max-width:100%;height:auto;display:block;margin:0 auto;"')
+    html = html.replace(/<img\b([^>]*?)style="([^"]*?)"/g, (m, pre, style) => {
+      return `<img${pre}style="${style};max-width:100%;height:auto;display:block;margin:0 auto;"`
+    })
+    return html
+  }
+  const urls = v.split(/[\n\r\s]+/).filter(Boolean)
+  const parts = urls.map(u => {
+    const url = u.startsWith('//') ? 'https:' + u : u
+    if (/\.(png|jpg|jpeg|gif|webp|bmp|svg)(\?.*)?$/i.test(url)) {
+      return `<p><img src="${url}" style="max-width:100%;height:auto;display:block;margin:0 auto;" /></p>`
+    }
+    return `<p><a href="${url}" target="_blank" rel="noopener">${url}</a></p>`
+  })
+  return parts.join('')
+})
 const ticketCategoryVoList = ref([])
 const actvieIndex = ref('')
 const menuActive = ref('')
@@ -248,7 +299,7 @@ const recommendParams = reactive({
 })
 recommendParams.programId = paramValue;
 //推荐列表数据
-const recommendList = ref(0)
+const recommendList = ref([])
 getProgramDetialsList()
 
 function getProgramDetialsList() {
@@ -302,6 +353,9 @@ function getProgramDetialsList() {
       name: '寄存说明',
       value: detailList.value.depositSpecification
     }]
+    recommendParams.areaId = detailList.value.areaId
+    recommendParams.parentProgramCategoryId = detailList.value.parentProgramCategoryId || detailList.value.programCategoryId
+    getRecommendList()
   })
 }
 
@@ -327,12 +381,35 @@ const nowBuy=()=>{
 
 }
 
-getRecommendList()
+
 
 //节目推荐列表
 function getRecommendList(){
   getProgramRecommendList(recommendParams).then(response => {
-    recommendList.value = response.data.slice(0,6);
+    const data = response.data || []
+    if (data.length) {
+      recommendList.value = data.slice(0,6)
+    } else {
+      const homeParams = { areaId: recommendParams.areaId, parentProgramCategoryIds: [] }
+      if (recommendParams.parentProgramCategoryId) {
+        homeParams.parentProgramCategoryIds = [recommendParams.parentProgramCategoryId]
+      }
+      getMainCategory(homeParams).then(res => {
+        const list = []
+        ;(res.data || []).forEach(c => {
+          if (c.programListVoList) list.push(...c.programListVoList)
+        })
+        if (list.length) {
+          recommendList.value = list.slice(0,6)
+        } else {
+          recommendList.value = [
+            { itemPicture: 'https://picsum.photos/seed/rec1/98/132', title: '精选演出推荐', place: '敬请期待更多精彩', showTime: '', showWeekTime: '', minPrice: 99 },
+            { itemPicture: 'https://picsum.photos/seed/rec2/98/132', title: '热门活动推荐', place: '覆盖全国热门城市', showTime: '', showWeekTime: '', minPrice: 199 },
+            { itemPicture: 'https://picsum.photos/seed/rec3/98/132', title: '为你精选', place: '近期上新不容错过', showTime: '', showWeekTime: '', minPrice: 299 }
+          ]
+        }
+      })
+    }
   })
 }
 
@@ -346,15 +423,18 @@ function getRecommendList(){
 
 <style scoped lang="scss">
 .app-container {
-  width: 1200px;
+  width: 100%;
+  max-width: 1200px;
   margin: 0 auto;
   overflow: auto;
 
   .wrapper {
     display: flex;
+    justify-content: space-between;
 
     .box-left {
       flex: 1;
+      min-width: 0;
 
       .box-detail {
         position: relative;
@@ -741,9 +821,9 @@ function getRecommendList(){
           }
         }
 
-      }
+        }
 
-      .box-item {
+        .box-item {
         width: 100%;
         height: 800px;
 
@@ -764,7 +844,7 @@ function getRecommendList(){
 
         }
 
-        #projectDetial {
+          #projectDetial {
           //width: 100%;
           //height:100%;
           padding: 60px 30px 0;
@@ -775,6 +855,14 @@ function getRecommendList(){
             font-size: 20px;
             color: #000;
             border-bottom: 1px solid #e2e2e2;
+            .rich-content {
+              img {
+                max-width: 100%;
+                height: auto;
+                display: block;
+                margin: 0 auto;
+              }
+            }
           }
 
           img {
@@ -874,7 +962,7 @@ function getRecommendList(){
       width: 320px;
       border-left: 1px solid #ebebeb;
       padding: 40px 18px 0;
-      float: left;
+      flex: 0 0 320px;
 
       .service {
         padding: 24px 15px;
