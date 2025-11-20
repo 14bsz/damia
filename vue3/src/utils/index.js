@@ -24,7 +24,16 @@ export function getCurrentDate (dateStr) {
 }
 //带周的格式化
 export function formatDateWithWeekday(dateStr,week) {
-    const date = new Date(dateStr);
+    if (!dateStr) {
+        return '';
+    }
+    let date = new Date(typeof dateStr === 'string' ? dateStr.replace(' ', 'T') : dateStr);
+    if (isNaN(date.getTime())) {
+        date = new Date(Date.parse(String(dateStr).replace(/-/g,'/')));
+    }
+    if (isNaN(date.getTime())) {
+        return '';
+    }
     const day = date.getDate();
     const month = date.getMonth() + 1; // 月份是从0开始的
     let showMonth = month;
@@ -35,11 +44,10 @@ export function formatDateWithWeekday(dateStr,week) {
     const hours = date.getHours();
     const minutes = date.getMinutes();
     let showMinutes = minutes;
-    if (minutes>=0 && minutes<9) {
+    if (minutes>=0 && minutes<=9) {
         showMinutes = "0"+minutes;
     }
-
-    return `${year}.${showMonth}.${day}  ${week} ${hours}:${showMinutes}`;
+    return `${year}.${showMonth}.${day}  ${week ? week : ''} ${hours}:${showMinutes}`;
 }
 
 
