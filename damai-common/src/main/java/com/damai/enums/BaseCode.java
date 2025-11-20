@@ -170,6 +170,8 @@ public enum BaseCode {
     
     CAN_NOT_CANCEL(40032,"订单不是未支付状态不能取消"),
     
+    PENDING_SAME_PROGRAM_ORDER_EXIST(40033,"存在未支付的相同演出订单"),
+    
     DELAY_QUEUE_CLIENT_NOT_EXIST(50001,"延迟队列客户端不存在"),
     
     DELAY_QUEUE_MESSAGE_NOT_EXIST(50002,"延迟队列消息不存在"),
