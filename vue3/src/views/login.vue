@@ -52,8 +52,7 @@
                 </div>
               </el-form>
             </el-tab-pane>
-            <el-tab-pane label="短信登录" name="second">暂未开放</el-tab-pane>
-            <el-tab-pane label="扫码登录" name="third">暂未开放</el-tab-pane>
+            
           </el-tabs>
         </div>
       </div>
@@ -68,7 +67,7 @@
       <div class="wrapper">
         <h2 class="tip-text">
           {{
-            `扫码二维码关注后回复: 大麦     获取体验账号`
+            `扫码二维码关注后回复: 票务平台     获取体验账号`
           }}
         </h2>
         <img
@@ -86,7 +85,7 @@
 
 <script setup>
 import wechatOfficialAccount from '@/assets/section/wechatOfficialAccount.jpg'
-import bg from '@/assets/section/javaup.jpg'
+import bg from '@/assets/section/javaup1.jpg'
 import Header from '@/components/header/index'
 import Footer from '@/components/footer/index'
 import {isPhoneNumber, isEmailAddress} from '@/utils/index'
@@ -112,7 +111,7 @@ const userName = ref('');
 const loginForm = ref({
   email: '',
   mobile: '13212345678',
-  password: '123456..',
+  password: '',
   code: '0001'//pc网站
 })
 

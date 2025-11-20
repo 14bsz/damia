@@ -174,7 +174,7 @@ public class Program extends BaseTableData implements Serializable {
     private String depositSpecification;
 
     /**
-     * 大麦网初始开售时全场可售门票总张数
+     * 票务平台网初始开售时全场可售门票总张数
      */
     private Long totalCount;
     

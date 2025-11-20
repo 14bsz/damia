@@ -3,9 +3,6 @@
     <div class="footer-sec">
       <ul class="footer-links">
 <!--        <li v-for="item in footerList">{{ item }}<span class="line">|</span></li>-->
-        <li ><a href="https://gitee.com/java-up-up" target="_blank">Gitee地址</a><span class="line">|</span></li>
-        <li ><a href="https://github.com/shining-stars-lk/damai" target="_blank">GitHub地址</a><span class="line">|</span></li>
-        <li ><a href="https://javaup.chat" target="_blank">文档地址</a><span class="line">|</span></li>
       </ul>
 <!--      <div class="footer-ft">-->
 <!--        <router-link to="/index" class="link">-->

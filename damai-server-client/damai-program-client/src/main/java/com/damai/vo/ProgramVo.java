@@ -123,7 +123,7 @@ public class ProgramVo implements Serializable {
     @Schema(name ="depositSpecification", type ="String", description ="寄存说明")
     private String depositSpecification;
     
-    @Schema(name ="totalCount", type ="Long", description ="大麦网初始开售时全场可售门票总张数")
+    @Schema(name ="totalCount", type ="Long", description ="票务平台网初始开售时全场可售门票总张数")
     private Long totalCount;
     
     @Schema(name ="permitRefund", type ="Integer", description ="是否允许退款  0:不支持退 1:条件退 2:全部退")
