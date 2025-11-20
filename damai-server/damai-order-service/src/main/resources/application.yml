@@ -34,6 +34,9 @@ spring:
         server-addr: 127.0.0.1:8848
         username: nacos
         password: nacos
+        heart-beat-interval: 30000      # 必须 < timeout
+        heart-beat-timeout: 35000       # 必须 > interval
+        ip-delete-timeout: 60000        # 必须 > interval
   kafka:
     bootstrap-servers: 127.0.0.1:9092
     consumer:
