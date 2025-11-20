@@ -55,14 +55,15 @@
 
 <script setup>
 import Header from '@/components/header/index'
-import swiperPic1 from '@/assets/section/javaup.png'
-import concert from '@/assets/section/concert.jpg'
+import swiperPic1 from '@/assets/section/javaup1.png'
+import gujuji from '@/assets/section/lunbo1.png'
+import detail from '@/assets/section/lunbo2.png'
 import small from '@/assets/section/small.jpg'
 import {onMounted, ref} from 'vue'
 import Footer from '@/components/footer/index'
 import {getcategoryType, getMainCategory} from '@/api/index'
 //轮播图目前固定一张
-const picArr = [swiperPic1]
+const picArr = [swiperPic1, gujuji, detail]
 
 const categoryArr = ref([])
 const programList = ref([])
@@ -115,14 +116,16 @@ function getMainCategoryList() {
 </script>
 <style scoped lang="scss">
 .app-container {
-  width: 1200px;
+  width: 100%;
+  max-width: 1200px;
   margin: 0 auto;
 
   .carousel-lamp {
     width: 100%;
     img{
-      width: 1200px;
+      width: 100%;
       height: 300px;
+      object-fit: cover;
     }
   }
 
@@ -223,7 +226,7 @@ function getMainCategoryList() {
   }
 
   .diffrentType {
-    width: 1200px;
+    width: 100%;
     position: relative;
     padding: 20px;
     border: 1px solid #EBEBEB;
@@ -279,7 +282,7 @@ function getMainCategoryList() {
 
     .box-right {
       display: inline-block;
-      width: 870px;
+      width: calc(100% - 285px);
       margin-left: 15px;
       height: 360px;
       vertical-align: top;
@@ -371,5 +374,4 @@ function getMainCategoryList() {
 
 
 </style>
-
 
