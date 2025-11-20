@@ -106,7 +106,7 @@
 <!--                     element-loading-svg-view-box="-10, -10, 50, 50"-->
 <!--                     element-loading-background="rgba(122, 122, 122, 0.8)"-->
 <!--                     @click="dialogLoading">点击loading</el-button>-->
-          <el-button type="primary" class="submit" @click="submitOrder">提交订单</el-button>
+          <el-button type="primary" class="submit" @click="submitOrder" :disabled="submitDisabled">提交订单</el-button>
         </div>
         </div>
       </div>
@@ -126,6 +126,18 @@
         </div>
       </template>
     </el-dialog>
+    <el-dialog v-model="duplicateDialogVisible" class="dm-duplicate-dialog">
+      <div class="content">您已有一笔待支付的相同演出订单，请前往订单管理页面进行支付或取消操作</div>
+      <div class="dm-dialog-buttons">
+        <el-button class="dm-dialog-btn dm-primary" @click="toOrderManagement">查看订单</el-button>
+      </div>
+      <template #footer>
+        <div class="dialog-footer">
+          <el-button class="dm-dialog-btn dm-secondary" @click="duplicateDialogVisible = false; isSHowInfo = true">关闭</el-button>
+          <el-button class="dm-dialog-btn dm-link" @click="toOrderManagement">前往订单管理</el-button>
+        </div>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -137,7 +149,7 @@ import {useRoute, useRouter} from 'vue-router'
 import { getUserIdKey} from "@/utils/auth";
 import { getPersonInfoId} from '@/api/personInfo'
 import {getTicketUser} from "@/api/buyTicketUser";
-import {getOrderCacheApi, orderCreateV1Api, orderCreateV2Api, orderCreateV3Api, orderCreateV4Api} from '@/api/order.js'
+import {getOrderCacheApi, orderCreateV1Api, orderCreateV2Api, orderCreateV3Api, orderCreateV4Api, pendingOrderCountApi} from '@/api/order.js'
 import {ElMessage} from "element-plus";
 //获取用户信息
 import useUserStore from "../../store/modules/user";
@@ -152,6 +164,7 @@ const telNum = ref('')
 const ticketInfoArr = ref([])
 const dialogVisible = ref(false)
 const isSHowInfo = ref(true)//此处设置是为了解决弹出框显示后此处界面也会显示到上层的问题。注意：关闭弹框的时候这里要设置为true
+const duplicateDialogVisible = ref(false)
 const ticketUserIdArr = ref([])
 //票档id
 const ticketCategoryId = ref('')
@@ -168,6 +181,7 @@ const svg = `
         " style="stroke-width: 4px; fill: rgba(0, 0, 0, 0)"/>`
 const pollingTimer = ref(null);
 const timeoutTimer = ref(null);
+const submitDisabled = ref(false)
 // 5s的时间（毫秒）
 const fiveSecond = 5000;
 
@@ -256,12 +270,30 @@ const stopPolling = () => {
  * 提交订单
  * */
 function submitOrder(){
+  submitDisabled.value = true
+  const preCheckParams = {userId: useUser.userId, programId: detailList.value.id}
+  pendingOrderCountApi(preCheckParams).then(response => {
+    if (response.code == '0' && response.data && response.data.count > 0) {
+      duplicateDialogVisible.value = true
+      isSHowInfo.value = false
+      submitDisabled.value = false
+      return
+    }
+    doSubmitOrder()
+  }).catch(() => {
+    submitDisabled.value = false
+    doSubmitOrder()
+  })
+}
+
+function doSubmitOrder(){
 
   if (ticketUserIdArr.value.length != num.value) {
     ElMessage({
       message:'选择的购票人和票张数量不一致',
       type: 'error',
     })
+    submitDisabled.value = false
     return;
   }
 
@@ -294,6 +326,7 @@ function submitOrder(){
         //排队弹框显示
         dialogShow();
       }
+      submitDisabled.value = false
     })
   }else if (createOrderVersion == 2) {
     //v2版本的创建订单
@@ -315,6 +348,7 @@ function submitOrder(){
         //排队弹框显示
         dialogShow();
       }
+      submitDisabled.value = false
     })
   }else if (createOrderVersion == 3) {
     //v3版本的创建订单
@@ -336,6 +370,7 @@ function submitOrder(){
         //排队弹框显示
         dialogShow();
       }
+      submitDisabled.value = false
     })
   }else if (createOrderVersion == 4) {
     //v4版本的创建订单
@@ -357,6 +392,7 @@ function submitOrder(){
       }else{
         dialogShow();
       }
+      submitDisabled.value = false
     })
   }
 }
@@ -380,10 +416,16 @@ function loadingShow(){
   isSHowInfo.value=false
 }
 
-function loadingClose(){
-  loading.value = false;
-  isSHowInfo.value=true;
-}
+  function loadingClose(){
+    loading.value = false;
+    isSHowInfo.value=true;
+  }
+
+  function toOrderManagement(){
+    duplicateDialogVisible.value = false
+    isSHowInfo.value = true
+    router.push({path:'/orderManagement/index'})
+  }
 
 onBeforeUnmount(() => {
   stopPolling();
@@ -1064,12 +1106,64 @@ onBeforeUnmount(() => {
     font-size: 20px;
   }
 }
-:deep(.el-dialog){
-
-  border-radius: 20px;
+:deep(.dm-duplicate-dialog){
+  width: min(560px, 92vw);
+  background-color: #fff;
+  border-radius: 16px;
+  box-shadow: 0 12px 28px rgba(0,0,0,.12);
+  animation: dmDialogEnter .22s ease;
 }
-:deep(.el-dialog__footer){
-  padding-top: 100px ;
+:deep(.dm-duplicate-dialog .el-dialog__header){
+  padding-bottom: 0;
+}
+:deep(.dm-duplicate-dialog .el-dialog__body){
+  padding-top: 6px;
+}
+:deep(.dm-duplicate-dialog .content){
+  color: #111;
+  font-size: 16px;
+  line-height: 24px;
+  text-align: center;
+}
+.dm-dialog-buttons{
+  display: flex;
+  justify-content: center;
+  margin-top: 16px;
+}
+.dm-dialog-btn{
+  min-width: 120px;
+  height: 36px;
+  padding: 0 16px;
+  border-radius: 8px;
+  transition: all .15s ease;
+}
+.dm-primary{
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  color: rgba(255, 55, 29, 0.85);
+}
+.dm-primary:hover{
+  background: #f8f9fa;
+}
+.dm-secondary{
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  color: #111;
+}
+.dm-secondary:hover{
+  background: #f8f9fa;
+}
+.dm-link{
+  background: transparent;
+  border: none;
+  color: rgba(255, 55, 29, 0.85);
+}
+.dm-link:hover{
+  color: #ff7a64;
+}
+@keyframes dmDialogEnter {
+  0% { opacity: 0; transform: translateY(-6px); }
+  100% { opacity: 1; transform: translateY(0); }
 }
 :deep(.el-radio__input.is-checked .el-radio__inner) {
   border-color: rgba(255, 55, 29, 0.85);

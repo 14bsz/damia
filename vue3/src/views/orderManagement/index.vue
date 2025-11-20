@@ -36,10 +36,29 @@
               </router-link>
             </li>
             <li>
-              <button  class="orderDetial" v-show="order.orderStatus == 1" @click="cancelOrder(order.orderNumber)">取消订单</button>
+              <transition name="fade">
+                <div class="btn-col" v-if="order.orderStatus == 1">
+                  <button class="order-btn pay" aria-label="支付订单" @click="goPay(order.orderNumber)">支付</button>
+                  <button class="order-btn cancel" aria-label="取消订单" @click="openCancelDialog(order.orderNumber)">取消订单</button>
+                </div>
+              </transition>
             </li>
           </ul>
           </div>
+
+      <el-dialog
+        v-model="cancelDialogVisible"
+        aria-label="确认取消订单"
+        class="dm-cancel-dialog"
+      >
+        <div class="content">您确定要取消此订单吗？</div>
+        <template #footer>
+          <div class="dialog-footer">
+            <el-button class="dm-secondary" aria-label="取消操作" @click="closeCancelDialog">取消</el-button>
+            <el-button class="dm-primary" aria-label="确认取消订单" @click="confirmCancel">确认</el-button>
+          </div>
+        </template>
+      </el-dialog>
 
   </div>
   </div>
@@ -54,7 +73,7 @@ import {ref, onMounted, getCurrentInstance, nextTick, reactive} from 'vue'
 import MenuSideBar from '../../components/menuSidebar/index'
 import Header from '../../components/header/index'
 import Footer from '../../components/footer/index'
-import {useRoute} from 'vue-router'
+import {useRoute, useRouter} from 'vue-router'
 import {cancelOrderApi, getOrderListApi} from '@/api/order.js'
 import {ElMessage} from "element-plus";
 //获取用户信息
@@ -86,25 +105,43 @@ function getOrderStatus(orderStatus){
     return '已支付';
   }
   if (orderStatus == 4) {
-    return '交易关闭';
+    return '已取消';
   }
 }
 
-function cancelOrder(orderNumber){
-  const orderNumberParams = {orderNumber}
+const cancelDialogVisible = ref(false)
+const targetOrderNumber = ref('')
+const targetOrderIndex = ref(-1)
+
+function openCancelDialog(orderNumber){
+  targetOrderNumber.value = orderNumber
+  targetOrderIndex.value = orderList.value?.findIndex?.(o => o.orderNumber === orderNumber) ?? -1
+  cancelDialogVisible.value = true
+}
+
+function confirmCancel(){
+  const orderNumberParams = {orderNumber: targetOrderNumber.value}
   cancelOrderApi(orderNumberParams).then(response => {
     if (response.code == '0') {
-      ElMessage({
-        message: '取消成功',
-        type: 'success',
-      })
-    }else{
-      ElMessage({
-        message:response.message,
-        type: 'error',
-      })
+      ElMessage({ message: '取消成功', type: 'success' })
+      if (targetOrderIndex.value > -1) {
+        orderList.value[targetOrderIndex.value].orderStatus = 4
+      }
+      cancelDialogVisible.value = false
+    } else {
+      ElMessage({ message: response.message, type: 'error' })
     }
   })
+}
+
+function closeCancelDialog(){
+  cancelDialogVisible.value = false
+}
+
+const router = useRouter();
+function goPay(orderNumber) {
+  // 跳转到支付页面，传递订单编号
+  router.push({ path: '/order/payMethod', state: { orderNumber } })
 }
 
 onMounted(() => {
@@ -239,22 +276,33 @@ onMounted(() => {
 
         }
         li:nth-child(5){
-          width:168px;
-          .orderDetial{
-            display: block;
-            width: 98px !important;
-            height: 30px;
+          width: 168px;
+          display: flex;
+          align-items: center;          // 水平居中
+          justify-content: center;      // 垂直居中
+          .btn-col{
+            display: flex;
+            flex-direction: column;     // 上下排列
+            gap: 10px;                  // 按钮间距
+          }
+          .order-btn{
+            width: 98px;                // 同宽
+            height: 30px;               // 同高
             line-height: 1;
             text-align: center;
-            background-color: rgba(255, 55, 29, 0.85);
-            color: #fff;
             font-size: 14px;
             border-radius: 20px;
-            margin-top: 32px;
             border: none;
-            margin-bottom: 10px;
-            margin-left: 44px;
-
+            cursor: pointer;
+            &.pay{
+              background-color: rgba(255, 55, 29, 0.85);
+              color: #fff;
+            }
+            &.cancel{
+              background-color: #fff;
+              color: rgba(255, 55, 29, 0.85);
+              border: 1px solid rgba(255, 55, 29, 0.85);
+            }
           }
         }
       }
@@ -276,5 +324,53 @@ onMounted(() => {
 .link {
   text-decoration: none; /* 去除下划线 */
 }
+
+.fade-enter-active, .fade-leave-active {
+  transition: all .2s ease;
+}
+.fade-enter-from, .fade-leave-to {
+  opacity: 0;
+  transform: translateY(-4px);
+}
+
+:deep(.dm-cancel-dialog){
+  width: min(560px, 92vw);
+  background-color: #fff;
+  border-radius: 16px;
+  box-shadow: 0 12px 28px rgba(0,0,0,.12);
+  animation: dmDialogEnter .22s ease;
+}
+:deep(.dm-cancel-dialog .el-dialog__header){
+  padding-bottom: 0;
+}
+:deep(.dm-cancel-dialog .el-dialog__body){
+  padding-top: 6px;
+}
+:deep(.dm-cancel-dialog .content){
+  color: #111;
+  font-size: 16px;
+  line-height: 24px;
+  text-align: center;
+}
+.dialog-footer{
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+}
+.dm-primary{
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  color: rgba(255, 55, 29, 0.85);
+}
+.dm-secondary{
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  color: #111;
+}
+@keyframes dmDialogEnter {
+  0% { opacity: 0; transform: translateY(-6px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+
 
 </style>
