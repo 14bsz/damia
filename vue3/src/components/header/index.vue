@@ -85,10 +85,6 @@
           </el-popover>
 
         </div>
-        <div class="box-right">
-          <img :src="document" alt="">
-          <span><a href="https://javaup.chat" target="_blank">文档</a></span>
-        </div>
       </div>
     </div>
   </div>
@@ -96,9 +92,8 @@
 
 <script setup>
 
-import logo from '@/assets/login/logo.png'
+import logo from '@/assets/login/logo1.png'
 import photo from '@/assets/login/photo.png'
-import document from '@/assets/login/document.jpeg'
 import {ref, reactive, onMounted, nextTick} from 'vue'
 import {getToken, getUserIdKey, removeToken, removeUserIdKey, removeName} from "../../utils/auth";
 import useUserStore from '@/store/modules/user'
@@ -286,11 +281,11 @@ function getProgramSearchList() {
 
     }
 
-    .recommendHeader {
+      .recommendHeader {
       max-width: 220px;
       height: 100%;
       float: left;
-      margin-right: -20px;
+      margin-right: 0;
       margin-left: 40px;
       line-height: 72px;
       overflow: hidden;
@@ -298,7 +293,7 @@ function getProgramSearchList() {
       .routeHome {
         display: inline-block;
         font-size: 16px;
-        margin-right: 18px;
+        margin-right: 32px;
         overflow: hidden;
 
       }
@@ -311,7 +306,7 @@ function getProgramSearchList() {
         display: inline-block;
         font-size: 16px;
         color: #000;
-        margin-right: 18px;
+        margin-right: 32px;
         overflow: hidden;
 
       }
