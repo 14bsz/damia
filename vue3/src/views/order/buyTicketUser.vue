@@ -1,37 +1,45 @@
 <template>
 <div class="app-container">
-  <el-form ref="formTicket" :model="form" :rules="rules" class="login-form">
-    <el-form-item label="姓名" prop="relName" label-width="272px" >
-      <el-input
-          v-model="form.relName"
-          type="text"
-          placeholder="请填写观演人姓名"
-      ></el-input>
-    </el-form-item>
-    <div class="line"></div>
-    <el-form-item label="证件类型" prop="idType" label-width="272px"   >
-      <el-select  v-model="form.idType">
-        <el-option v-for="item in idType"
-                   :value="item.value"
-                   :label="item.name" >{{item.name}}</el-option>
-      </el-select>
-    </el-form-item>
-    <div class="line"></div>
-    <el-form-item label="证件号码" prop="idNumber" label-width="272px"  >
-      <el-input
-          v-model="form.idNumber"
-          type="text"
-          placeholder="请填写证件号码"
-      ></el-input>
-    </el-form-item>
-    <div class="line"></div>
-    <div class="tips"><el-icon><Warning /></el-icon>点击确定表示您已阅读并同意 <span>《实名须知》</span></div>
-    <div class="sure">
-      <el-button  class="submit" @click="submit">确定</el-button>
-    </div>
-  </el-form>
-
-
+  <div class="form-container">
+    <div class="page-title">新增观演人</div>
+    <el-form ref="formTicket" :model="form" :rules="rules" class="ticket-form" label-position="top">
+      <el-form-item label="姓名" prop="relName">
+        <el-input
+            v-model="form.relName"
+            type="text"
+            placeholder="请填写观演人姓名"
+            class="custom-input"
+        ></el-input>
+      </el-form-item>
+      
+      <el-form-item label="证件类型" prop="idType">
+        <el-select v-model="form.idType" class="custom-select" placeholder="请选择证件类型">
+          <el-option v-for="item in idType"
+                     :key="item.value"
+                     :value="item.value"
+                     :label="item.name">{{item.name}}</el-option>
+        </el-select>
+      </el-form-item>
+      
+      <el-form-item label="证件号码" prop="idNumber">
+        <el-input
+            v-model="form.idNumber"
+            type="text"
+            placeholder="请填写证件号码"
+            class="custom-input"
+        ></el-input>
+      </el-form-item>
+      
+      <div class="tips">
+        <el-icon class="icon-warning"><Warning /></el-icon>
+        <span>点击确定表示您已阅读并同意 <span class="link">《实名须知》</span></span>
+      </div>
+      
+      <div class="form-actions">
+        <el-button type="primary" class="submit-btn" @click="submit">确定</el-button>
+      </div>
+    </el-form>
+  </div>
 </div>
 </template>
 
@@ -40,6 +48,8 @@ import {getCurrentInstance, ref,onMounted} from 'vue'
 import {saveTicketUser} from "@/api/buyTicketUser";
 import { getUserIdKey} from "@/utils/auth";
 import {useRoute, useRouter} from 'vue-router'
+import { ElMessage } from 'element-plus'
+import { Warning } from '@element-plus/icons-vue'
 
 const route = useRoute();
 const router = useRouter();
@@ -47,7 +57,7 @@ const router = useRouter();
 const {proxy} = getCurrentInstance();
 const form=ref({})
 const rules = ref({})
-form.value.idType = ref('1')
+form.value.idType = '1' // Default to ID Card
 const detailList = ref([])
 const allPrice = ref('')
 const countPrice = ref('')
@@ -69,25 +79,27 @@ const idType = ref([{
   name:'护照',
   value:'5'
 },{
-  name:'歪果仁永久居住证',
+  name:'外国人永久居住证',
   value:'6'
 }])
 
 onMounted(()=>{
-  detailList.value  = JSON.parse(history.state.detailList)
-  allPrice.value  = history.state.allPrice
-  countPrice.value  =history.state.countPrice
-  num.value  =history.state.num
+  if (history.state) {
+      detailList.value  = history.state.detailList ? JSON.parse(history.state.detailList) : []
+      allPrice.value  = history.state.allPrice
+      countPrice.value  =history.state.countPrice
+      num.value  =history.state.num
+  }
 })
 const submit =()=>{
   proxy.$refs.formTicket.validate(valid => {
     if (valid) {
-      if(form.value.relName == undefined){
+      if(!form.value.relName){
         ElMessage({
           message: '请填写观演姓名',
           type: 'error',
         })
-      }else if(form.value.idNumber == undefined){
+      }else if(!form.value.idNumber){
         ElMessage({
           message: '请填写证件号码',
           type: 'error',
@@ -96,114 +108,129 @@ const submit =()=>{
         form.value.userId=getUserIdKey()
         saveTicketUser(form.value).then(response=>{
           if(response.code==0){
-            router.replace({path:'/order/index'})
+            router.replace({path:'/order/index', state: history.state})
           }
-
         })
       }
-
     }
   });
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 </script>
 
 <style scoped lang="scss">
-.app-container{
-  .el-form{
-    .el-form-item{
-      width: auto;
-      height: 18.1vmin;
-      padding-left: 5.6vmin;
-      padding-right: 5.6vmin;
-      display: flex;
-      -webkit-box-orient: horizontal;
-      flex-direction: row;
-      -webkit-box-pack: start;
-      justify-content: flex-start;
-      -webkit-box-align: center;
-      align-items: center;
+.app-container {
+  width: 100%;
+  min-height: 100vh;
+  background: linear-gradient(135deg, #fdfbfb 0%, #ebedee 100%); // Subtle gradient background
+  padding: 40px 20px;
+  box-sizing: border-box;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+}
 
-      .el-input{
+.form-container {
+  width: 100%;
+  max-width: 820px;
+  background: #ffffff;
+  border-radius: 16px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.08);
+  overflow: hidden; // Ensure header background doesn't overflow
+  margin-top: 20px;
+}
 
-      }
-    }
-    .line{
-      width: auto;
-      height: 0.27vmin;
-      margin-left: 5.6vmin;
-      margin-right: 5.6vmin;
-      background: rgb(238, 238, 238);
-    }
-    .tips{
-      width: auto;
-      height: 10.67vmin;
-      color: rgb(204, 204, 204);
-      font-size: 3.2vmin;
-      line-height: 5.6vmin;
-      margin-left: 5.6vmin;
-      margin-right: 5.6vmin;
-      display: flex;
-      -webkit-box-align: center;
-      align-items: center;
-      span{
-        color: rgb(59, 153, 252);
-      }
-    }
-    .sure{
-      width: 100%;
-      position: absolute;
-      display: flex;
-      -webkit-box-pack: center;
-      justify-content: center;
-      -webkit-box-align: end;
-      align-items: flex-end;
-      bottom: 0px;
-      height:21.5vmin;
-      padding-bottom: 5.9vmin;
-      box-shadow: rgba(0, 0, 0, 0.04) 0px -2px 6px 0px;
-      .submit{
-        display: flex;
-        -webkit-box-pack: center;
-        justify-content: center;
-        -webkit-box-align: center;
-        align-items: center;
-        width: 88.8vmin;
-        height: 13.3vmin;
-        font-size: 4.27vmin;
-        color: rgb(255, 255, 255);
-        border-radius: 170.667px 170.667px 170.667px 0px;
-        background-image: linear-gradient(-270deg, rgb(255, 40, 105) 0%, rgb(255, 50, 153) 100%);
+.page-title {
+  font-size: 24px;
+  font-weight: 600;
+  color: #fff;
+  background: linear-gradient(90deg, #ff2869 0%, #ff3299 100%);
+  padding: 24px;
+  text-align: center;
+  margin-bottom: 30px;
+  letter-spacing: 1px;
+}
 
-      }
-    }
+.ticket-form {
+  padding: 0 40px 40px; // Move padding here to exclude header
+  
+  :deep(.el-form-item__label) {
+    font-size: 16px;
+    color: #333;
+    font-weight: 500;
+    padding-bottom: 8px;
+    line-height: 1.5;
   }
 
+  :deep(.el-input__wrapper), :deep(.el-select__wrapper) {
+    box-shadow: 0 0 0 1px #e4e7ed inset;
+    padding: 8px 12px;
+    border-radius: 8px;
+    background-color: #f8f9fa; // Light background for inputs
+    transition: all 0.3s;
+    
+    &.is-focus {
+      background-color: #fff;
+      box-shadow: 0 0 0 1px #ff2869 inset !important;
+    }
+    
+    &:hover {
+      background-color: #fff;
+    }
+  }
+  
+  :deep(.el-input__inner) {
+    height: 40px;
+    font-size: 16px;
+    color: #333;
+  }
 
+  .custom-input, .custom-select {
+    width: 100%;
+  }
 }
 
-:deep(.el-form-item--default .el-form-item__label) {
-
-  font-size: 62px;
-  color: rgb(51, 51, 51);
-  font-weight: normal;
-
+.tips {
+  display: flex;
+  align-items: center;
+  margin: 12px 0 16px;
+  font-size: 14px;
+  color: #999;
+  
+  .icon-warning {
+    margin-right: 6px;
+    font-size: 16px;
+    color: #ff2869;
+  }
+  
+  .link {
+    color: #3b99fc;
+    cursor: pointer;
+    &:hover {
+      text-decoration: underline;
+    }
+  }
 }
-:deep(.el-input .el-input__wrapper .el-input__inner) {
-  border: none !important; /* 移除边框 */
-  box-shadow: none !important; /* 移除阴影 */
+
+.form-actions {
+  display: flex;
+  justify-content: center;
+  
+  .submit-btn {
+    width: 100%;
+    height: 48px;
+    font-size: 18px;
+    border-radius: 24px;
+    background: linear-gradient(90deg, #ff2869 0%, #ff3299 100%);
+    border: none;
+    
+    &:hover {
+      opacity: 0.9;
+    }
+    
+    &:active {
+      opacity: 1;
+      transform: scale(0.99);
+    }
+  }
 }
 </style>
