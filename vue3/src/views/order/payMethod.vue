@@ -5,6 +5,17 @@
       <div class="content"><img :src="pay" alt=""><span>支付宝付款</span></div>
     </div>
     <div class="pay-section">
+      <div class="order-brief" v-if="orderDetailData">
+        <div class="title">{{ orderDetailData.programTitle }}</div>
+        <div class="price">￥{{ orderDetailData.orderPrice }}</div>
+        <div class="countdown" v-if="remainText">剩余支付时间：{{ remainText }}</div>
+      </div>
+      <div class="seat-info" v-if="orderDetailData && orderDetailData.orderTicketInfoVoList && orderDetailData.orderTicketInfoVoList.length">
+        <div class="label">座位明细</div>
+        <ul class="seat-list">
+          <li class="seat-item" v-for="(it,idx) in orderDetailData.orderTicketInfoVoList" :key="idx">{{ it.seatInfo }}（￥{{ it.price }}）×{{ it.quantity }}</li>
+        </ul>
+      </div>
       <el-button type="primary" class="payContinue" @click="continuePay">继续浏览器付款</el-button>
     </div>
   </div>
@@ -19,6 +30,7 @@ import {getOrderDetailApi,orderPayApi} from "@/api/order.js";
 const orderNumber = ref('')
 //订单详情数据
 const orderDetailData = ref('');
+const remainText = ref('');
 const route = useRoute();
 const router = useRouter();
 import {useMitt} from "@/utils/index";
@@ -38,7 +50,8 @@ function continuePay() {
     'subject':orderDetailData.value.programTitle,
     'price':orderDetailData.value.orderPrice,
     'channel':'alipay',
-    'payBillType':1
+    'payBillType':1,
+    'seatInfo': buildSeatInfoJson()
   }
   console.log('支付参数:', orderPayParams);
   orderPayApi(orderPayParams).then(response => {
@@ -82,7 +95,35 @@ function getOrderDetail() {
   localStorage.setItem('orderNumber',orderNumber.value)
   getOrderDetailApi(orderDetailParams).then(response => {
     orderDetailData.value = response.data;
+    updateRemainText()
   })
+}
+
+function buildSeatInfoJson(){
+  try{
+    const list = (orderDetailData.value?.orderTicketInfoVoList || []).map(it => ({ seatInfo: it.seatInfo, price: it.price, quantity: it.quantity }))
+    return JSON.stringify({ orderNumber: orderNumber.value, seats: list })
+  }catch(e){
+    return JSON.stringify({ orderNumber: orderNumber.value, seats: [] })
+  }
+}
+
+function updateRemainText(){
+  try{
+    const create = new Date(orderDetailData.value.createOrderTime).getTime()
+    const expire = create + 15*60*1000
+    const tick = () => {
+      const now = Date.now()
+      const diff = Math.max(0, expire - now)
+      const mm = String(Math.floor(diff/60000)).padStart(2,'0')
+      const ss = String(Math.floor((diff%60000)/1000)).padStart(2,'0')
+      remainText.value = mm+':'+ss
+    }
+    tick()
+    setInterval(tick,1000)
+  }catch(e){
+    remainText.value = ''
+  }
 }
 
 function goBack(){
@@ -150,15 +191,23 @@ function goBack(){
       }
     }
   }
-  .pay-section{
-    .payContinue{
-      width: 95%;
-      height: 123px;
-      margin-top: 300px;
-      font-size: 60px;
-      margin-left: 40px;
-    }
+.pay-section{
+  .payContinue{
+    width: 95%;
+    height: 123px;
+    margin-top: 300px;
+    font-size: 60px;
+    margin-left: 40px;
   }
+  .order-brief{ padding: 24px 40px; display:flex; align-items:center; gap:24px; }
+  .order-brief .title{ font-size: 20px; font-weight: 600; }
+  .order-brief .price{ font-size: 18px; color:#333; }
+  .order-brief .countdown{ font-size: 16px; color:#ff4d4f; }
+  .seat-info{ padding: 0 40px; }
+  .seat-info .label{ font-size: 16px; font-weight: 600; margin-bottom: 8px; }
+  .seat-list{ list-style:none; padding:0; margin:0; }
+  .seat-item{ padding: 4px 0; font-size: 14px; color:#333; }
+}
 }
 
 </style>
