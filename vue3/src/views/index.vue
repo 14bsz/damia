@@ -26,8 +26,7 @@
           <router-link :to="{ path: '/allType/index', query: {type:1,name:item.categoryName,id:item.categoryId} }" class="more">查看全部</router-link>
         </div>
         <div class="box">
-          <div class="box-left"  >
-            {{item.programListVoList[0].itemPicture}}
+          <div class="box-left" v-if="item.programListVoList && item.programListVoList.length">
             <router-link :to="{ name: 'detial', params: { id: item.programListVoList[0].id }}"><img :src="item.programListVoList[0].itemPicture" alt=""></router-link>
           </div>
 
@@ -93,21 +92,36 @@ onMounted(() => {
 //查询节目类型
 function getgetcategoryList() {
   getcategoryType({type: 1}).then(response => {
-    categoryArr.value = response.data
+    const list = Array.isArray(response.data) ? response.data : []
+    categoryArr.value = list
     getMainCategoryList()
+  }).catch(() => {
+    categoryArr.value = []
+    programList.value = []
   })
 }
 
 function handleUpdate(value) {
   queryParams.value.areaId = value
+  if (categoryArr.value && categoryArr.value.length) {
+    getMainCategoryList()
+  }
 }
 
 function getMainCategoryList() {
+  queryParams.value.parentProgramCategoryIds = []
   for (let i = 0; i < 4 && i < categoryArr.value.length; i++) {
-    queryParams.value.parentProgramCategoryIds.push(categoryArr.value[i].id);
+    queryParams.value.parentProgramCategoryIds.push(categoryArr.value[i].id)
+  }
+  if (!queryParams.value.parentProgramCategoryIds.length) {
+    programList.value = []
+    return
   }
   getMainCategory(queryParams.value).then(response => {
-    programList.value = response.data
+    const data = Array.isArray(response.data) ? response.data : []
+    programList.value = data
+  }).catch(() => {
+    programList.value = []
   })
 }
 
