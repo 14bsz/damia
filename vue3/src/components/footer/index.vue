@@ -1,8 +1,8 @@
 <template>
   <div class="footer">
     <div class="footer-sec">
-      <ul class="footer-links">
-<!--        <li v-for="item in footerList">{{ item }}<span class="line">|</span></li>-->
+      <ul class="footer-links" v-if="footerList && footerList.length">
+        <li v-for="(item, idx) in footerList" :key="idx">{{ item }}<span class="line">|</span></li>
       </ul>
 <!--      <div class="footer-ft">-->
 <!--        <router-link to="/index" class="link">-->
@@ -52,7 +52,8 @@ const footerList = ref(
   background-color: #f8f8f8;
   width: 100%;
   //height: 298px;
- height: 150px;
+  height: auto;
+  min-height: 120px;
   //position: fixed;
 
   .footer-sec {
@@ -63,7 +64,7 @@ const footerList = ref(
       display: flex;
       align-items: center;
       justify-content: center;
-      padding: 36px 0;
+      padding: 24px 0;
       text-align: center;
       zoom: 1;
       list-style: none;
