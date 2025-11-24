@@ -7,7 +7,7 @@
           <span class="local">{{ detailList.areaName }}|{{ detailList.place }}</span>
           <div class="line"></div>
           <div class="time"><span>{{ formatDateWithWeekday(detailList.showTime, detailList.showWeekTime) }}</span></div>
-          <div class="money"><span>￥<span v-if="allPrice == ''">{{countPrice}}</span><span v-else>{{allPrice}}</span>票档</span><span >×<span  v-if="allPrice == ''">1</span><span  v-else>{{num}}</span>张</span></div>
+          <div class="money"><span>{{ displayTicketLabel }}</span></div>
           <div class="order-info">
             <span>按付款顺序配票，优先连座配票</span>
           </div>
@@ -51,23 +51,33 @@
           <div class="line"></div>
         </div>
         <div class="isRealName">
-          <div class="left"><span class="title">实名观演人</span><span class="notice">仅需选择一位，入场时需携带对应证件</span></div>
+          <div class="left"><div class="title">实名观演人</div><span class="notice">仅需选择一位，入场时需携带对应证件</span></div>
           <div class="right"><el-button class="btn" type="primary" circle @click="buyTicketInfo">新增</el-button></div>
-          <div class="ticketInfo" v-if="ticketInfoArr!=''">
-              <div  class="ticket" v-for="item in ticketInfoArr">
-              <div class="info" v-if="isSHowInfo">
-                <span class="title">{{item.relName}}</span>
-               <div class="card">
-                 <span class="cardType" v-if="item.idType == 1">身份证</span>
-                 <span class="cardType" v-if="item.idType == 2">港澳台居民居住证</span>
-                 <span class="cardType" v-if="item.idType == 3">港澳居民来往内地通行证</span>
-                 <span class="cardType" v-if="item.idType == 4">台湾居民来往内地通行证</span>
-                 <span class="cardType" v-if="item.idType == 5">护照</span>
-                 <span class="cardType" v-if="item.idType == 6">外国人永久居住证</span>
-                 <span class="cardId"> {{item.idNumber}}</span>
-               </div>
-              </div>
-                <div class="chx"> <el-checkbox class="checkSelect" :value="item.id" size="large" @change="getSelectTicketUser(item.id, $event)"></el-checkbox></div>
+        <div class="ticketInfo" v-if="ticketInfoArr!=''">
+              <div class="ticket-card" 
+                   v-for="item in ticketInfoArr" 
+                   :key="item.id"
+                   :class="{ 'is-selected': ticketUserIdArr.includes(item.id) }"
+                   @click="toggleTicketUser(item.id)">
+                <div class="card-content">
+                  <div class="name-row">
+                    <span class="name">{{item.relName}}</span>
+                    <span class="tag" v-if="item.idType == 1">身份证</span>
+                    <span class="tag" v-else-if="item.idType == 2">港澳台居民居住证</span>
+                    <span class="tag" v-else-if="item.idType == 3">港澳居民来往内地通行证</span>
+                    <span class="tag" v-else-if="item.idType == 4">台湾居民来往内地通行证</span>
+                    <span class="tag" v-else-if="item.idType == 5">护照</span>
+                    <span class="tag" v-else-if="item.idType == 6">外国人永久居住证</span>
+                  </div>
+                  <div class="id-row">
+                     <span class="label">证件号：</span>
+                     <span class="value">{{item.idNumber}}</span>
+                  </div>
+                </div>
+                <div class="card-action">
+                   <i class="icon-checked" v-if="ticketUserIdArr.includes(item.id)"></i>
+                   <i class="icon-unchecked" v-else></i>
+                </div>
               </div>
           </div>
         </div>
@@ -94,18 +104,17 @@
         <div class="info">
           <div class="descript">由于票品为价票券，非普通商品，其背后承载的文化服务具有时效性、稀缺性等特征，一旦订购成功，不支持退换。</div>
         <div class="price">
-          <span class="num" v-if="allPrice == ''">￥{{ countPrice }}</span>
-          <span class="num" v-else>￥{{ allPrice }}</span>
-          <span class="detail">明细</span>
-<!--          <el-button type="primary" class="dialogShow"-->
-<!--                     @click="dialogShow">点击显示弹框</el-button>-->
-<!--          <el-button type="primary" class="dialogShow"-->
-<!--                     v-loading.fullscreen.lock="loading"-->
-<!--                     element-loading-text="请稍后..."-->
-<!--                     :element-loading-spinner="svg"-->
-<!--                     element-loading-svg-view-box="-10, -10, 50, 50"-->
-<!--                     element-loading-background="rgba(122, 122, 122, 0.8)"-->
-<!--                     @click="dialogLoading">点击loading</el-button>-->
+          <span class="num">￥{{ displayTotalPrice }}</span>
+          <span class="detail" @click="priceDetailVisible = true">明细</span>
+          <!--          <el-button type="primary" class="dialogShow"-->
+          <!--                     @click="dialogShow">点击显示弹框</el-button>-->
+          <!--          <el-button type="primary" class="dialogShow"-->
+          <!--                     v-loading.fullscreen.lock="loading"-->
+          <!--                     element-loading-text="请稍后..."-->
+          <!--                     :element-loading-spinner="svg"-->
+          <!--                     element-loading-svg-view-box="-10, -10, 50, 50"-->
+          <!--                     element-loading-background="rgba(122, 122, 122, 0.8)"-->
+          <!--                     @click="dialogLoading">点击loading</el-button>-->
           <el-button type="primary" class="submit" @click="submitOrder" :disabled="submitDisabled">提交订单</el-button>
         </div>
         </div>
@@ -138,11 +147,25 @@
         </div>
       </template>
     </el-dialog>
+    <el-dialog v-model="priceDetailVisible" class="dm-price-detail-dialog" aria-label="价格明细">
+      <div class="content">
+        <div v-if="seatDtoListRef && seatDtoListRef.length">
+          <div v-for="(s,idx) in seatDtoListRef" :key="idx">{{ s.rowCode }}排{{ s.colCode }}列：￥{{ Number(s.price || 0) }}</div>
+          <div style="margin-top:8px;font-weight:600;">合计：￥{{ displayTotalPrice }}</div>
+        </div>
+        <div v-else>票档：￥{{ Number(countPrice || 0) }} × {{ Number(num || 1) }}</div>
+      </div>
+      <template #footer>
+        <div class="dialog-footer">
+          <el-button class="dm-primary" @click="priceDetailVisible = false">关闭</el-button>
+        </div>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup name="orderIndex">
-import {ref, nextTick, onActivated, onMounted,onBeforeUnmount } from 'vue'
+import {ref, nextTick, onActivated, onMounted,onBeforeUnmount, computed } from 'vue'
 import pay from "@/assets/section/pay.png"
 import {getCurrentDateTime,formatDateWithWeekday,useMitt} from '@/utils/index'
 import {useRoute, useRouter} from 'vue-router'
@@ -165,6 +188,7 @@ const ticketInfoArr = ref([])
 const dialogVisible = ref(false)
 const isSHowInfo = ref(true)//此处设置是为了解决弹出框显示后此处界面也会显示到上层的问题。注意：关闭弹框的时候这里要设置为true
 const duplicateDialogVisible = ref(false)
+const priceDetailVisible = ref(false)
 const ticketUserIdArr = ref([])
 //票档id
 const ticketCategoryId = ref('')
@@ -184,6 +208,41 @@ const timeoutTimer = ref(null);
 const submitDisabled = ref(false)
 // 5s的时间（毫秒）
 const fiveSecond = 5000;
+const ticketLabel = ref('')
+const seatDtoListRef = ref([])
+
+const displayTotalPrice = computed(() => {
+  if (seatDtoListRef.value && seatDtoListRef.value.length > 0) {
+    return seatDtoListRef.value.reduce((sum, s) => sum + Number(s.price || 0), 0)
+  }
+  const ap = Number(allPrice.value || 0)
+  if (ap > 0) return ap
+  const cp = Number(countPrice.value || 0)
+  const n = Number(num.value || 1)
+  return cp * n
+})
+
+const displayCount = computed(() => {
+  if (seatDtoListRef.value && seatDtoListRef.value.length > 0) return seatDtoListRef.value.length
+  return Number(num.value || 1)
+})
+
+const displayTicketLabel = computed(() => {
+  if (seatDtoListRef.value && seatDtoListRef.value.length > 0) {
+    const count = seatDtoListRef.value.length
+    return `选座x${count}张`
+  }
+  if (ticketLabel.value) {
+    const count = Number(num.value || 1)
+    return `${ticketLabel.value}x${count}张`
+  }
+  const catId = Number(ticketCategoryId.value || 0)
+  const cats = Array.isArray(detailList.value.ticketCategoryVoList) ? detailList.value.ticketCategoryVoList : []
+  const cat = cats.find(x => Number(x.id) === catId)
+  const name = cat ? (cat.introduce || '') : '票档'
+  const count = Number(num.value || 1)
+  return `${name}x${count}张`
+})
 
 //跳转后的接收值
 onMounted(()=>{
@@ -192,6 +251,12 @@ onMounted(()=>{
   countPrice.value  =history.state.countPrice
   num.value  =history.state.num
   ticketCategoryId.value = history.state.ticketCategoryId
+  ticketLabel.value = history.state.ticketLabel || ''
+  if (history.state && history.state.seatDtoList) {
+    // 当存在选座数据时，覆盖票档与数量，由后端按 seatDtoList 精确下单
+    ticketCategoryId.value = ''
+    seatDtoListRef.value = history.state.seatDtoList || []
+  }
 })
 
 getPersonInfoIdList()
@@ -217,11 +282,14 @@ function buyTicketInfo(){
 
 }
 
-function getSelectTicketUser(ticketUserId,isChecked){
-  if (isChecked) {
-    ticketUserIdArr.value.push(ticketUserId);
+
+
+function toggleTicketUser(ticketUserId) {
+  const index = ticketUserIdArr.value.indexOf(ticketUserId);
+  if (index > -1) {
+    ticketUserIdArr.value.splice(index, 1);
   } else {
-    ticketUserIdArr.value = ticketUserIdArr.value.filter((item) => item !== ticketUserId);
+    ticketUserIdArr.value.push(ticketUserId);
   }
 }
 
@@ -288,7 +356,8 @@ function submitOrder(){
 
 function doSubmitOrder(){
 
-  if (ticketUserIdArr.value.length != num.value) {
+  const requiredCount = (seatDtoListRef.value && seatDtoListRef.value.length > 0) ? seatDtoListRef.value.length : Number(num.value)
+  if (ticketUserIdArr.value.length != requiredCount) {
     ElMessage({
       message:'选择的购票人和票张数量不一致',
       type: 'error',
@@ -298,11 +367,15 @@ function doSubmitOrder(){
   }
 
   const orderCreateParams = {
-    'programId':detailList.value.id,
-    'userId':useUser.userId,
-    'ticketUserIdList':ticketUserIdArr.value,
-    'ticketCategoryId':ticketCategoryId.value,
-    'ticketCount':num.value
+    programId: detailList.value.id,
+    userId: useUser.userId,
+    ticketUserIdList: ticketUserIdArr.value
+  }
+  if (seatDtoListRef.value && seatDtoListRef.value.length > 0) {
+    orderCreateParams.seatDtoList = seatDtoListRef.value
+  } else {
+    orderCreateParams.ticketCategoryId = ticketCategoryId.value
+    orderCreateParams.ticketCount = num.value
   }
 
   const createOrderVersion = import.meta.env.VITE_CREATE_ORDER_VERSION
@@ -319,10 +392,10 @@ function doSubmitOrder(){
         const orderNumber = response.data;
         router.replace({path:'/order/payMethod',state:{'orderNumber':orderNumber}})
       }else{
-        // ElMessage({
-        //   message:response.message,
-        //   type: 'error',
-        // })
+        ElMessage({
+          message: response.message || '下单失败，请检查座位状态',
+          type: 'error',
+        })
         //排队弹框显示
         dialogShow();
       }
@@ -341,10 +414,10 @@ function doSubmitOrder(){
         const orderNumber = response.data;
         router.replace({path:'/order/payMethod',state:{'orderNumber':orderNumber}})
       }else{
-        // ElMessage({
-        //   message:response.message,
-        //   type: 'error',
-        // })
+        ElMessage({
+          message: response.message || '下单失败，请检查座位状态',
+          type: 'error',
+        })
         //排队弹框显示
         dialogShow();
       }
@@ -363,10 +436,10 @@ function doSubmitOrder(){
         const orderNumber = response.data;
         router.replace({path:'/order/payMethod',state:{'orderNumber':orderNumber}})
       }else{
-        // ElMessage({
-        //   message:response.message,
-        //   type: 'error',
-        // })
+        ElMessage({
+          message: response.message || '下单失败，请检查座位状态',
+          type: 'error',
+        })
         //排队弹框显示
         dialogShow();
       }
@@ -390,6 +463,10 @@ function doSubmitOrder(){
           }
         }, fiveSecond);
       }else{
+        ElMessage({
+          message: response.message || '下单失败，请检查座位状态',
+          type: 'error',
+        })
         dialogShow();
       }
       submitDisabled.value = false
@@ -455,14 +532,14 @@ onBeforeUnmount(() => {
       height: auto;
 
       .top {
-        position: absolute;
+        position: relative;
         display: flex;
         overflow: hidden;
         -webkit-box-orient: vertical;
         flex-direction: column;
         width: 100%;
-        padding-top: 31px;
-        height: 318px;
+        padding: 24px 43px;
+        height: 240px;
         background: rgba(255, 55, 29, 0.85);
 
         .title {
@@ -470,9 +547,9 @@ onBeforeUnmount(() => {
           display: flex;
           flex-shrink: 0;
           flex-grow: 0;
-          margin-right: 43px;
-          font-size: 37px;
-          margin-left: 43px;
+          margin-right: 0;
+          font-size: 28px;
+          margin-left: 0;
           width: 100%;
           max-width: 1800px;
           -webkit-box-pack: start;
@@ -490,9 +567,9 @@ onBeforeUnmount(() => {
           display: flex;
           flex-shrink: 0;
           flex-grow: 0;
-          margin-right: 43px;
-          font-size: 24px;
-          margin-left: 43px;
+          margin-right: 0;
+          font-size: 18px;
+          margin-left: 0;
           width: fit-content;
           overflow: hidden;
           color: rgb(255, 255, 255);
@@ -510,14 +587,14 @@ onBeforeUnmount(() => {
           display: flex;
           flex-shrink: 0;
           flex-grow: 0;
-          margin-right: 43px;
+          margin-right: 0;
           background-color: rgba(255, 55, 29, 0.85);
           place-self: center flex-end;
-          margin-left: 43px;
+          margin-left: 0;
           width: 100%;
           max-width: 1800px;
           margin-top: 24px;
-          height: 2px;
+          height: 1px;
         }
 
         .time {
@@ -525,13 +602,13 @@ onBeforeUnmount(() => {
           display: flex;
           flex-shrink: 0;
           flex-grow: 0;
-          margin-right: 43px;
-          font-size: 33px;
-          margin-left: 43px;
+          margin-right: 0;
+          font-size: 18px;
+          margin-left: 0;
           width: fit-content;
           overflow: hidden;
           color: rgb(255, 255, 255);
-          margin-top: 24px;
+          margin-top: 6px;
           height: auto;
           -webkit-box-pack: start;
           justify-content: flex-start;
@@ -543,7 +620,7 @@ onBeforeUnmount(() => {
           height: fit-content;
           span {
             white-space: pre-wrap;
-            line-height: 40px;
+            line-height: 28px;
             overflow: hidden;
             text-overflow: ellipsis;
           }
@@ -559,17 +636,19 @@ onBeforeUnmount(() => {
 
           -webkit-box-orient: horizontal;
           flex-direction: row;
-          margin-left: 43px;
+          margin-left: 0;
           flex-shrink: 0;
           flex-grow: 0;
           height: fit-content;
+          margin-top: 6px;
 
           span{
             position: relative;
             display: flex;
             flex-shrink: 0;
             flex-grow: 0;
-            font-size: 29px;
+            font-size: 18px;
+            font-weight: 600;
             width: fit-content;
             color: rgb(255, 255, 255);
             height: auto;
@@ -587,10 +666,10 @@ onBeforeUnmount(() => {
           display: flex;
           flex-shrink: 0;
           flex-grow: 0;
-          margin-right: 43px;
-          font-size: 24px;
+          margin-right: 0;
+          font-size: 14px;
           visibility: visible;
-          margin-left: 43px;
+          margin-left: 0;
           width: 100%;
           max-width: 1800px;
           color: rgb(255, 255, 255);
@@ -603,31 +682,45 @@ onBeforeUnmount(() => {
           flex-shrink: 0;
           flex-grow: 0;
           height: fit-content;
+          span{
+            font-size: 16px;
+            font-weight: 500;
+          }
         }
 
       }
       .bottom{
         width: 100%;
         height: auto;
-        margin-top: 330px;
+        margin-top: 24px;
 
         .service-box{
           width: 100%;
-          height: 33px;
+          min-height: 33px;
           line-height: 33px;
           display: flex;
           flex-direction: row;
-          margin-top: 30px;
+          flex-wrap: wrap;
+          margin-top: 24px;
           color: #000 !important;
-          font-size: 24px;
+          font-size: 16px;
           .service{
-            width: 50px;
             height: 33px;
             line-height: 33px;
-            margin-left: 50px;
+            margin-left: 43px;
+            margin-right: 16px;
+            display: inline-flex;
+            align-items: center;
+            padding: 0 12px;
+            border-radius: 16px;
+            background: #fff0ed;
+            border: 1px solid rgba(255, 55, 29, 0.85);
+            color: rgba(255, 55, 29, 0.85);
+            font-size: 18px;
+            font-weight: 600;
           }
           .service-name{
-            margin-left: 18px;
+            margin-left: 12px;
             width: fit-content;
             height: 33px;
             line-height: 33px;
@@ -638,7 +731,7 @@ onBeforeUnmount(() => {
               height: 12px;
               background-repeat: no-repeat;
               background-size: 12px 12px;
-              background: url('/src/assets/section/warn.png');
+              background: url('@/assets/section/warn.png');
               margin-right: 10px;
             }
             .icon-yes-blue{
@@ -647,7 +740,7 @@ onBeforeUnmount(() => {
               height: 12px;
               background-repeat: no-repeat;
               background-size: 12px 12px;
-              background: url('/src/assets/section/yes-blue.png');
+              background: url('@/assets/section/yes-blue.png');
               margin-right: 10px;
             }
             span{
@@ -659,15 +752,19 @@ onBeforeUnmount(() => {
 
         }
         .line{
-          margin: 20px 0px 20px 50px;
-          width: 97%;
-          height: 2px;
-          background-color: #cccccc;
-          opacity: 0.7;
+          margin: 16px 43px;
+          width: calc(100% - 86px);
+          height: 1px;
+          background-color: #e6e6e6;
+          opacity: 0.9;
         }
       }
       .isRealName{
-        margin-bottom: 20px;
+        margin: 16px 43px;
+        background: #ffffff;
+        border: 1px solid #eaeaea;
+        border-radius: 12px;
+        padding: 16px 24px;
         .left{
           position: relative;
           display: flex;
@@ -676,21 +773,23 @@ onBeforeUnmount(() => {
           -webkit-box-orient: vertical;
           flex-direction: column;
           place-self: center flex-start;
-          margin-left: 43px;
+          margin-left: 0;
           width: fit-content;
           -webkit-box-flex: 1;
           height: auto;
           float: left;
-          .title{
-            position: relative;
-            display: flex;
-            flex-shrink: 0;
-            flex-grow: 0;
+           .title{
+             position: relative;
+             display: flex;
+             flex-shrink: 0;
+             flex-grow: 0;
             font-size: 24px;
-            place-self: flex-start center;
-            width: fit-content;
-            height: auto;
-            -webkit-box-pack: start;
+            font-weight: 600;
+            color: #000000;
+             place-self: flex-start center;
+             width: fit-content;
+             height: auto;
+             -webkit-box-pack: start;
             justify-content: flex-start;
             -webkit-box-align: center;
             align-items: center;
@@ -701,7 +800,7 @@ onBeforeUnmount(() => {
             position: relative;
             display: flex;
             flex: 1 1 0%;
-            font-size: 24px;
+            font-size: 14px;
             place-self: flex-start center;
             width: fit-content;
             -webkit-box-flex: 1;
@@ -718,7 +817,7 @@ onBeforeUnmount(() => {
         }
         .right{
           float: left;
-          margin-left: 43px;
+          margin-left: 24px;
           .btn{
             position: relative;
             display: flex;
@@ -733,101 +832,107 @@ onBeforeUnmount(() => {
             height: 55px;
             border-radius: 28px;
             border: none;
-            font-size: 24px;
+            font-size: 16px;
           }
         }
-        .ticketInfo{
+        .ticketInfo {
           width: 100%;
-          padding-left: 143.36px;
-          padding-right: 143.36px;
-          height: auto;
-          min-height: 10.67vmin;
-          //display: flex;
-          -webkit-box-orient: horizontal;
-          flex-direction: row;
-          -webkit-box-pack: justify;
-          justify-content: space-between;
-          -webkit-box-align: center;
-          align-items: center;
-          .ticket{
-            width: 100%;
-            height: 136px;
+          padding: 0;
+          margin-top: 20px;
+          display: flex;
+          flex-wrap: wrap;
+          gap: 15px;
+
+          .ticket-card {
+            flex: 0 0 calc(50% - 15px); // 2 cards per row with gap
+            background: #f5f6fa;
+            border-radius: 8px;
+            padding: 16px;
+            cursor: pointer;
+            border: 1px solid transparent;
+            transition: all 0.3s ease;
             display: flex;
-            flex-direction: row;
+            justify-content: space-between;
             align-items: center;
-            .info{
-              position: relative;
-              display: flex;
-              flex: 1 1 0%;
-              overflow: hidden;
-              -webkit-box-orient: vertical;
-              flex-direction: column;
-              place-self: center flex-start;
-              margin-left: 43px;
-              width: fit-content;
-              -webkit-box-flex: 1;
-              height: auto;
-              float: left;
-              .title{
-                position: relative;
-                display: flex;
-                flex-shrink: 0;
-                flex-grow: 0;
-                place-self: flex-start center;
-                width: fit-content;
-                height: auto;
-                -webkit-box-pack: start;
-                justify-content: flex-start;
-                -webkit-box-align: center;
-                align-items: center;
-                font-size: 4.27vmin;
-                color: rgb(0, 0, 0);
-                max-width: 60vmin;
-                margin-right: 1.2vmin;
-                overflow: hidden;
-                text-overflow: ellipsis;
-                white-space: nowrap;
-              }
-              .card{
-                font-size: 3.2vmin;
-                color: rgb(156, 156, 165);
-                width: auto;
-                overflow: hidden;
-                white-space: nowrap;
-                margin-right: 2.4vmin;
-                //position: relative;
-                //display: flex;
-                //flex-direction: row;
-                //flex: 1 1 0%;
-                //place-self: flex-start center;
-                //width: fit-content;
-                //-webkit-box-flex: 1;
-                //margin-top: 6px;
-                //height: auto;
-                //-webkit-box-pack: start;
-                //justify-content: flex-start;
-                //-webkit-box-align: center;
-                //align-items: center;
-                //overflow: hidden;
-                //max-width: none;
-                //font-size: 3.2vmin;
-                //color: rgb(156, 156, 165);
-                .cardType{
-                  width: 100px;
-                  font-size: 24px;
-                  color:rgb(156, 156, 165);
-                  display: inline-block;
-                }
-                .cardId{
+            box-sizing: border-box;
 
-                }
-              }
-
+            &:hover {
+              background: #eef0f4;
             }
 
-            .chx{}
-          }
+            &.is-selected {
+              background: #fff0ed;
+              border-color: rgba(255, 55, 29, 0.85);
+              
+              .card-action {
+                 .icon-checked {
+                    display: block;
+                 }
+                 .icon-unchecked {
+                    display: none;
+                 }
+              }
+            }
 
+            .card-content {
+              display: flex;
+              flex-direction: column;
+              
+              .name-row {
+                display: flex;
+                align-items: center;
+                margin-bottom: 8px;
+                
+                .name {
+                  font-size: 18px;
+                  font-weight: bold;
+                  color: #333;
+                  margin-right: 10px;
+                }
+                
+                .tag {
+                  font-size: 12px;
+                  color: #999;
+                  background: #fff;
+                  padding: 2px 6px;
+                  border-radius: 4px;
+                  border: 1px solid #ddd;
+                }
+              }
+              
+              .id-row {
+                font-size: 14px;
+                color: #666;
+                
+                .label {
+                  color: #999;
+                }
+              }
+            }
+
+            .card-action {
+              width: 24px;
+              height: 24px;
+              
+              .icon-unchecked {
+                display: block;
+                width: 20px;
+                height: 20px;
+                border: 1px solid #ddd;
+                border-radius: 50%;
+                background: #fff;
+              }
+              
+              .icon-checked {
+                display: none; // Hidden by default, shown when selected
+                width: 22px;
+                height: 22px;
+                background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1024 1024'%3E%3Cpath fill='%23FF371D' d='M512 0C229.23 0 0 229.23 0 512s229.23 512 512 512 512-229.23 512-512S794.77 0 512 0zm-32.53 760.68L238.31 519.51l65.06-65.06 176.1 176.1 336.96-336.96 65.06 65.06-402.02 402.03z'/%3E%3C/svg%3E");
+                background-repeat: no-repeat;
+                background-size: contain;
+              }
+            }
+          }
         }
 
       }
@@ -839,13 +944,18 @@ onBeforeUnmount(() => {
         opacity: 0.7;
       }
       .sendMethod{
-        margin-left: 43px;
+        margin: 16px 43px;
+        background: #ffffff;
+        border: 1px solid #eaeaea;
+        border-radius: 12px;
+        padding: 16px 24px;
         .sendMethodTitle{
           position: relative;
           display: flex;
           flex: 1 1 0%;
           margin-right: 10px;
           font-size: 24px;
+          font-weight: 600;
           place-self: center flex-start;
           width: fit-content;
           -webkit-box-flex: 1;
@@ -863,25 +973,25 @@ onBeforeUnmount(() => {
           display: flex;
           flex-shrink: 0;
           flex-grow: 0;
-          font-size: 33px;
+          font-size: 18px;
           place-self: center flex-start;
           width: fit-content;
           color: rgb(0, 0, 0);
-          height: 45px;
+          height: 36px;
           -webkit-box-pack: start;
           justify-content: flex-start;
           -webkit-box-align: center;
           align-items: center;
           overflow: hidden;
           max-width: none;
-          margin-top: 20px;
-          margin-bottom: 10px;
+          margin-top: 12px;
+          margin-bottom: 6px;
           .ticketbtn {
             position: relative;
             display: flex;
             flex-shrink: 0;
             flex-grow: 0;
-            font-size: 20px;
+            font-size: 14px;
             place-self: center;
             width: fit-content;
             -webkit-box-pack: center;
@@ -894,6 +1004,7 @@ onBeforeUnmount(() => {
             max-width: none;
             border: 1px solid rgb(255, 146, 0);
             border-radius: 20px;
+            margin-left: 8px;
           }
         }
         .ticketInfo{
@@ -901,7 +1012,7 @@ onBeforeUnmount(() => {
           display: flex;
           flex-shrink: 0;
           flex-grow: 0;
-          font-size: 24px;
+          font-size: 14px;
           width: 100%;
           overflow: hidden;
           color: rgb(156, 156, 165);
@@ -914,19 +1025,24 @@ onBeforeUnmount(() => {
         }
       }
       .sendline{
-        margin: 20px 0px 20px 50px;
-        width: 97%;
+        margin: 16px 43px;
+        width: calc(100% - 86px);
         height: 1px;
-        background-color: #cccccc;
-        opacity: 0.7;
+        background-color: #e6e6e6;
+        opacity: 0.9;
       }
       .tel{
-        margin-left: 43px;
+        margin: 16px 43px;
+        background: #ffffff;
+        border: 1px solid #eaeaea;
+        border-radius: 12px;
+        padding: 16px 24px;
         .title{
           position: relative;
           display: flex;
           flex: 1 1 0%;
           font-size: 24px;
+          font-weight: 600;
           place-self: center flex-start;
           width: fit-content;
           -webkit-box-flex: 1;
@@ -938,7 +1054,7 @@ onBeforeUnmount(() => {
           align-items: center;
           overflow: hidden;
           max-width: none;
-         margin: 20px 0;
+         margin: 0 0 12px 0;
         }
         .telNum{
           width: 100%;
@@ -948,18 +1064,19 @@ onBeforeUnmount(() => {
           padding: 0px;
           margin: 0px;
           user-select: auto;
-          font-size: 33px;
+          font-size: 18px;
           color: rgb(0, 0, 0);
           text-align: left;
         }
       }
-      .payMethod{
-        margin-left: 43px;
-        .title{
+        .payMethod{
+          margin-left: 43px;
+          .title{
           position: relative;
           display: flex;
           flex: 1 1 0%;
           font-size: 24px;
+          font-weight: 600;
           place-self: center flex-start;
           width: fit-content;
           -webkit-box-flex: 1;
@@ -972,27 +1089,29 @@ onBeforeUnmount(() => {
           overflow: hidden;
           max-width: none;
           margin: 20px 0;
-        }
-        .payMoney{
-          display: flex;
-          height: 300px;
-          img{
-            width: 80px;
-            height: 80px;
           }
-          span{
-            padding: 30px 15px;
-            font-size: 3.4vmin;
-            color: #000000;
-            letter-spacing: 0;
-            line-height: 15px;
-            margin-right: 1500px;
-          }
-          .radioPay{
+          .payMoney{
+            display: flex;
+            height: 300px;
+            align-items: flex-start;
+            img{
+              width: 80px;
+              height: 80px;
+            }
+            span{
+              padding: 10px 15px;
+              font-size: 3.4vmin;
+              color: #000000;
+              letter-spacing: 0;
+              line-height: 1.2;
+              white-space: nowrap;
+              margin-right: 1500px;
+            }
+            .radioPay{
 
+            }
           }
         }
-      }
       .info{
         width: 100%;
         height: 150px;
