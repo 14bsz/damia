@@ -41,6 +41,11 @@ export const constantRoutes = [
         name: 'detial',
         component: () => import('@/views/contentDetail/index'),
     }, {
+        path: '/seat/map/:id',
+        name: 'seatMap',
+        component: () => import('@/views/seatMap/index'),
+        meta: {requiresAuth: true}
+    }, {
         path: '/order/index',
         name: 'orderIndex',
         component: () => import('@/views/order/index'),
