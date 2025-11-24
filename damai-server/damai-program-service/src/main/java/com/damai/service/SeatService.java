@@ -210,11 +210,17 @@ public class SeatService extends ServiceImpl<SeatMapper, Seat> {
             Integer count = seatBatchRelateInfoAddDto.getCount();
             
             int colCount = 10;
-            int rowCount = count / colCount;
+            int rowCount = (count + colCount - 1) / colCount;
             
             for (int i = 1;i<= rowCount;i++) {
                 rowIndex++;
-                for (int j = 1;j<=colCount;j++) {
+                int cols = colCount;
+                if (i == rowCount) {
+                    int used = (rowCount - 1) * colCount;
+                    int remain = count - used;
+                    cols = remain > 0 ? remain : colCount;
+                }
+                for (int j = 1;j<=cols;j++) {
                     Seat seat = new Seat();
                     seat.setProgramId(programId);
                     seat.setTicketCategoryId(ticketCategoryId);
