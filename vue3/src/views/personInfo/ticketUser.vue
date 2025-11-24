@@ -85,7 +85,7 @@ import {ref, computed, onMounted, reactive, getCurrentInstance} from 'vue'
 import useUserStore from "../../store/modules/user";
 import {delTicketUserApi, selectTicketUserListApi} from '@/api/accountCenter.js'
 import {getIdTypeName} from '@/api/common.js'
-import {ElMessage} from 'element-plus'
+import {ElMessage, ElMessageBox} from 'element-plus'
 import { getUserIdKey} from "@/utils/auth";
 import {saveTicketUser} from "@/api/buyTicketUser";
 
@@ -137,10 +137,19 @@ function selectTicketUserList() {
 }
 
 function delTicketUser(ticketUserId){
-  const delTicketUserParam = {'id' : ticketUserId}
-  delTicketUserApi(delTicketUserParam).then(response => {
-    selectTicketUserList()
-  })
+  ElMessageBox.confirm('确定删除该购票人吗？删除后不可恢复', '提示', {
+    confirmButtonText: '删除',
+    cancelButtonText: '取消',
+    type: 'warning'
+  }).then(() => {
+    const delTicketUserParam = { id: ticketUserId }
+    delTicketUserApi(delTicketUserParam).then(() => {
+      ElMessage({ message: '删除成功', type: 'success' })
+      selectTicketUserList()
+    }).catch(() => {
+      ElMessage({ message: '删除失败', type: 'error' })
+    })
+  }).catch(() => {})
 }
 //新增购票人
 function addTicketUser(){
