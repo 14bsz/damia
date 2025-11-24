@@ -44,4 +44,7 @@ public class OrderPayDto implements Serializable {
     @Schema(name ="payBillType", type ="Integer", description ="支付种类 1节目",requiredMode= RequiredMode.REQUIRED)
     @NotNull
     private Integer payBillType;
+
+    @Schema(name ="seatInfo", type ="String", description ="座位信息JSON字符串")
+    private String seatInfo;
 }

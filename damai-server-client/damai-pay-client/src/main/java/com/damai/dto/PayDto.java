@@ -52,4 +52,7 @@ public class PayDto implements Serializable {
     @Schema(name ="returnUrl", type ="String", description ="支付成功后跳转页面",requiredMode= RequiredMode.REQUIRED)
     @NotBlank
     private String returnUrl;
+
+    @Schema(name ="seatInfoJson", type ="String", description ="座位信息JSON字符串")
+    private String seatInfoJson;
 }

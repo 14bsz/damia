@@ -227,6 +227,7 @@ public class OrderService extends ServiceImpl<OrderMapper, Order> {
         payDto.setChannel(orderPayDto.getChannel());
         payDto.setPlatform(orderPayDto.getPlatform());
         payDto.setPrice(orderPayDto.getPrice());
+        payDto.setSeatInfoJson(orderPayDto.getSeatInfo());
         payDto.setNotifyUrl(orderProperties.getOrderPayNotifyUrl());
         payDto.setReturnUrl(orderProperties.getOrderPayReturnUrl());
         return payDto;
