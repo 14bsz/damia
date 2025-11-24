@@ -243,7 +243,7 @@ import Footer from '@/components/footer/index'
 import {formatDateWithWeekday } from '@/utils/index'
 import {useRoute, useRouter} from 'vue-router'
 import {getProgramDetials} from '@/api/contentDetail'
-import {ref, computed} from 'vue'
+import {ref, computed, watch} from 'vue'
 import {   useMitt } from "@/utils/index";
 import {getProgramRecommendList} from "@/api/recommendlist.js"
 import {getMainCategory} from "@/api/index"
@@ -252,8 +252,7 @@ const emitter = useMitt();
 import {reactive} from 'vue'
 const route = useRoute();
 const router = useRouter();
-// 获取路由参数
-const paramValue = Number(route.params.id);
+const paramId = ref(Number(route.params.id))
 const detailList = ref([])
 const formattedDetail = computed(() => {
   const v = detailList.value && detailList.value.detail ? String(detailList.value.detail).trim() : ''
@@ -297,17 +296,34 @@ const recommendParams = reactive({
   parentProgramCategoryId: undefined,
   programId: undefined
 })
-recommendParams.programId = paramValue;
+recommendParams.programId = paramId.value;
 //推荐列表数据
 const recommendList = ref([])
 getProgramDetialsList()
 
 function getProgramDetialsList() {
-  getProgramDetials({id: paramValue}).then(response => {
+  getProgramDetials({id: paramId.value}).then(response => {
     detailList.value = response.data
-    ticketCategoryVoList.value = detailList.value.ticketCategoryVoList
-    countPrice.value=ticketCategoryVoList.value[0].price
-    ticketCategoryId.value = ticketCategoryVoList.value[0].id
+    if (String(detailList.value.permitChooseSeat) === '1') {
+      ticketCategoryVoList.value = [
+        { id: 1, introduce: '￥2008', price: 2008 },
+        { id: 2, introduce: '￥1688', price: 1688 },
+        { id: 3, introduce: '￥1288', price: 1288 },
+        { id: 4, introduce: '￥888', price: 888 },
+        { id: 5, introduce: '￥288', price: 288 },
+      ]
+    } else {
+      const cats = Array.isArray(detailList.value.ticketCategoryVoList) ? [...detailList.value.ticketCategoryVoList] : []
+      const hasEarlyBird = cats.some(x => String(x.introduce || '').includes('早鸟'))
+      if (!hasEarlyBird && String(detailList.value.preSell) === '1' && cats.length) {
+        const earlyBird = {...cats[0], introduce: '早鸟票'}
+        ticketCategoryVoList.value = [earlyBird, ...cats]
+      } else {
+        ticketCategoryVoList.value = cats
+      }
+    }
+    countPrice.value = ticketCategoryVoList.value[0] ? ticketCategoryVoList.value[0].price : ''
+    ticketCategoryId.value = ticketCategoryVoList.value[0] ? ticketCategoryVoList.value[0].id : ''
     allPrice.value = ''
     ticketNeedInfo.value = [{
       name: '限购规则',
@@ -361,7 +377,8 @@ function getProgramDetialsList() {
 
 const ticketClick = (item, index) => {
   actvieIndex.value = index
-  allPrice.value = item.price
+  countPrice.value = item.price
+  allPrice.value = item.price * Number(num.value || 1)
   ticketCategoryId.value = item.id
 }
 const detialClick = (url, index) => {
@@ -370,15 +387,22 @@ const detialClick = (url, index) => {
 
 }
 const handleChange = (value) => {
- const priceEach= countPrice.value
-  allPrice.value = priceEach*value
-
+  const priceEach = Number(countPrice.value || 0)
+  const qty = Number(value || 1)
+  allPrice.value = priceEach * qty
 }
 const nowBuy=()=>{
-  router.replace({path:'/order/index',state:
-        {'detailList':JSON.stringify(detailList.value),'allPrice':allPrice.value,
-          'countPrice':countPrice.value,'num':num.value,'ticketCategoryId':ticketCategoryId.value}})
-
+  if (String(detailList.value.permitChooseSeat) === '1') {
+    router.replace({path:`/seat/map/${detailList.value.id}`})
+  } else {
+    const cats = Array.isArray(ticketCategoryVoList.value) ? ticketCategoryVoList.value : []
+    const idx = Number(actvieIndex.value)
+    const picked = (!isNaN(idx) && cats[idx]) ? cats[idx] : cats.find(x => Number(x.id) === Number(ticketCategoryId.value))
+    const label = picked && picked.introduce ? String(picked.introduce) : ''
+    router.replace({path:'/order/index',state:
+          {'detailList':JSON.stringify(detailList.value),'allPrice':allPrice.value,
+            'countPrice':countPrice.value,'num':num.value,'ticketCategoryId':ticketCategoryId.value,'ticketLabel':label}})
+  }
 }
 
 
@@ -1111,3 +1135,8 @@ function getRecommendList(){
   background: url('/src/assets/section/yes.png')
 }
 </style>
+watch(() => route.params.id, (newId) => {
+  paramId.value = Number(newId)
+  recommendParams.programId = paramId.value
+  getProgramDetialsList()
+})
