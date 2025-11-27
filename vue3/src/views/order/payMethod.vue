@@ -15,17 +15,28 @@
         <ul class="seat-list">
           <li class="seat-item" v-for="(it,idx) in orderDetailData.orderTicketInfoVoList" :key="idx">{{ it.seatInfo }}（￥{{ it.price }}）×{{ it.quantity }}</li>
         </ul>
+        <div class="selected-list" v-if="resolvedSeats && resolvedSeats.length">
+          <span class="sel-tag" v-for="(s,i) in resolvedSeats" :key="i">{{ s.name }} <span class="price-tag">￥{{ s.price }}</span></span>
+        </div>
       </div>
-      <el-button type="primary" class="payContinue" @click="continuePay">继续浏览器付款</el-button>
+      <div class="seat-info" v-else-if="ticketCount > 0">
+        <div class="label">座位明细</div>
+        <ul class="seat-list">
+          <li class="seat-item">票档（￥{{ unitPrice }}）×{{ ticketCount }}</li>
+        </ul>
+      </div>
+      <el-button type="primary" class="payContinue" :disabled="isPaying" @click="continuePay">继续浏览器付款</el-button>
     </div>
   </div>
 </template>
 
 <script setup name="PayMethod">
 import pay from "@/assets/section/pay.png"
-import {ref,onMounted} from 'vue'
+import {ref,onMounted,computed} from 'vue'
 import {useRoute, useRouter} from 'vue-router'
 import {getOrderDetailApi,orderPayApi} from "@/api/order.js";
+import { ElMessage } from 'element-plus'
+import { ArrowLeftBold } from '@element-plus/icons-vue'
 //订单编号
 const orderNumber = ref('')
 //订单详情数据
@@ -36,6 +47,8 @@ const router = useRouter();
 import {useMitt} from "@/utils/index";
 
 const emitter = useMitt();
+
+const isPaying = ref(false);
 
 
 function continuePay() {
@@ -61,13 +74,25 @@ function continuePay() {
       ElMessage.error(response.message || '支付接口异常');
       return;
     }
-    if (typeof response.data === 'string' && response.data.startsWith('<form')) {
-      document.write(response.data);
-    } else if (typeof response.data === 'string' && response.data.startsWith('http')) {
-      window.location.href = response.data;
-    } else {
-      ElMessage.error('支付链接获取失败，请稍后重试');
+    const body = response.data;
+    if (typeof body === 'string') {
+      const html = String(body);
+      if (html.includes('<form') || html.includes('<html')) {
+        if (!submitAlipayHtml(html)) {
+          submitAlipayForm(html);
+        }
+        return;
+      }
+      if (/^https?:\/\//i.test(html)) {
+        if (/excashier-sandbox\.dl\.alipaydev\.com\/standard\/auth\.htm/i.test(html)) {
+          window.location.replace(html);
+          return;
+        }
+        postAlipayUrl(html);
+        return;
+      }
     }
+    ElMessage.error('支付链接获取失败，请稍后重试');
   }).catch(err => {
     console.error('支付接口异常:', err);
     ElMessage.error('支付接口异常，请稍后重试');
@@ -126,6 +151,106 @@ function updateRemainText(){
   }
 }
 
+function submitAlipayForm(html){
+  try{
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(html, 'text/html');
+    const originForm = doc.querySelector('form');
+    if(!originForm){
+      ElMessage.error('支付表单解析失败');
+      return;
+    }
+    const method = (originForm.getAttribute('method') || 'post').toLowerCase();
+    const action = originForm.getAttribute('action') || '';
+    const form = document.createElement('form');
+    form.method = method === 'get' ? 'get' : 'post';
+    form.action = action;
+    const inputs = originForm.querySelectorAll('input[name]');
+    inputs.forEach((inp) => {
+      const input = document.createElement('input');
+      input.type = 'hidden';
+      input.name = inp.getAttribute('name') || '';
+      input.value = inp.getAttribute('value') || '';
+      form.appendChild(input);
+    });
+    document.body.appendChild(form);
+    form.submit();
+  }catch(err){
+    ElMessage.error('支付表单提交失败');
+  }
+}
+
+function submitAlipayHtml(html){
+  try{
+    const w = window.open('', '_self');
+    w.document.open('text/html', 'replace');
+    w.document.write(html);
+    w.document.close();
+    return true;
+  }catch(err){
+    try{
+      document.open('text/html', 'replace');
+      document.write(html);
+      document.close();
+      return true;
+    }catch(e){
+      return false;
+    }
+  }
+}
+
+function postAlipayUrl(payUrl){
+  try{
+    const u = new URL(payUrl);
+    const action = u.origin + u.pathname;
+    const raw = u.search.startsWith('?') ? u.search.slice(1) : u.search;
+    const form = document.createElement('form');
+    form.method = 'post';
+    form.action = action;
+    form.acceptCharset = 'UTF-8';
+    form.enctype = 'application/x-www-form-urlencoded';
+  raw.split('&').forEach(pair => {
+      if (!pair) return;
+      const eq = pair.indexOf('=');
+      const k = eq >= 0 ? pair.slice(0, eq) : pair;
+      const vRaw = eq >= 0 ? pair.slice(eq + 1) : '';
+      const input = document.createElement('input');
+      input.type = 'hidden';
+      input.name = decodeURIComponent(k || '');
+      const needsSpace = input.name !== 'sign';
+      const norm = needsSpace ? vRaw.replace(/\+/g, '%20') : vRaw;
+      input.value = decodeURIComponent(norm || '');
+      form.appendChild(input);
+    });
+    document.body.appendChild(form);
+    form.submit();
+  }catch(e){
+    window.location.href = payUrl;
+  }
+}
+
+const resolvedSeats = computed(() => {
+  const result = []
+  const arr = orderDetailData.value?.orderTicketInfoVoList || []
+  arr.forEach(it => {
+    const names = String(it.seatInfo || '').split(',').map(s => s.trim()).filter(Boolean)
+    names.forEach(n => result.push({ name: n, price: Number(it.price || 0) }))
+  })
+  return result
+})
+
+const ticketCount = computed(() => {
+  const arr = orderDetailData.value?.userAndTicketUserInfoVo?.ticketUserInfoVoList || []
+  return Array.isArray(arr) ? arr.length : 0
+})
+
+const unitPrice = computed(() => {
+  const price = Number(orderDetailData.value?.orderPrice || 0)
+  const c = Number(ticketCount.value || 0)
+  if (c <= 0) return 0
+  return Math.round((price / c) * 100) / 100
+})
+
 function goBack(){
   try{
     if (window.history.length > 1){
@@ -176,7 +301,7 @@ function goBack(){
         height: 60px;
         position: absolute;
         top: 4px;
-        left: 40%;
+        left: 38%;
       }
 
       span {
@@ -192,21 +317,36 @@ function goBack(){
     }
   }
 .pay-section{
-  .payContinue{
-    width: 95%;
-    height: 123px;
-    margin-top: 300px;
-    font-size: 60px;
-    margin-left: 40px;
-  }
-  .order-brief{ padding: 24px 40px; display:flex; align-items:center; gap:24px; }
-  .order-brief .title{ font-size: 20px; font-weight: 600; }
-  .order-brief .price{ font-size: 18px; color:#333; }
-  .order-brief .countdown{ font-size: 16px; color:#ff4d4f; }
-  .seat-info{ padding: 0 40px; }
-  .seat-info .label{ font-size: 16px; font-weight: 600; margin-bottom: 8px; }
+  max-width: 880px;
+  margin: 24px auto;
+  padding: 24px 24px 16px;
+  background: #fff;
+  border: 1px solid #eee;
+  border-radius: 12px;
+  box-shadow: 0 6px 18px rgba(0,0,0,0.04);
+
+  .order-brief{ display:flex; align-items:center; justify-content:space-between; gap:16px; padding-bottom: 16px; border-bottom: 1px dashed #e6e6e6; }
+  .order-brief .title{ font-size: 20px; font-weight: 700; color:#333; flex:1; }
+  .order-brief .price{ font-size: 20px; font-weight: 700; color: rgba(255, 55, 29, 0.85); }
+  .order-brief .countdown{ font-size: 14px; color:#ff4d4f; background: #fff1f0; border: 1px solid #ffccc7; border-radius: 999px; padding: 6px 10px; }
+
+  .seat-info{ padding-top: 16px; }
+  .seat-info .label{ font-size: 16px; font-weight: 600; margin-bottom: 8px; color:#333; }
   .seat-list{ list-style:none; padding:0; margin:0; }
-  .seat-item{ padding: 4px 0; font-size: 14px; color:#333; }
+  .seat-item{ padding: 6px 0; font-size: 14px; color:#333; }
+
+  .selected-list{ margin-top: 8px; display:flex; flex-wrap:wrap; gap:8px; }
+  .sel-tag{ display:inline-flex; align-items:center; gap:6px; background:#f7f8fa; border:1px solid #e6e6e6; border-radius:6px; padding:6px 10px; color:#333; }
+  .price-tag{ color: rgba(255, 55, 29, 0.85); font-weight:700; }
+
+  .payContinue{
+    width: 100%;
+    height: 48px;
+    margin-top: 16px;
+    font-size: 18px;
+    margin-left: 0;
+    border-radius: 8px;
+  }
 }
 }
 
