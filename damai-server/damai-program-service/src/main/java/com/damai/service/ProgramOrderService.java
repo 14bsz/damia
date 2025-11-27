@@ -101,7 +101,15 @@ public class ProgramOrderService {
                 if (Objects.nonNull(ticketCategoryVo)) {
                     getTicketCategoryVoList.add(ticketCategoryVo);
                 }else {
-                    throw new DaMaiFrameException(BaseCode.TICKET_CATEGORY_NOT_EXIST_V2);
+                    TicketCategoryVo matchByPrice = ticketCategoryVoList.stream()
+                            .filter(tc -> Objects.equals(tc.getPrice(), seatDto.getPrice()))
+                            .findFirst().orElse(null);
+                    if (Objects.nonNull(matchByPrice)) {
+                        seatDto.setTicketCategoryId(matchByPrice.getId());
+                        getTicketCategoryVoList.add(matchByPrice);
+                    }else {
+                        throw new DaMaiFrameException(BaseCode.TICKET_CATEGORY_NOT_EXIST_V2);
+                    }
                 }
             }
         } else {
@@ -152,7 +160,23 @@ public class ProgramOrderService {
             for (SeatDto seatDto : seatDtoList) {
                 SeatVo seatVo = seatVoMap.get(seatDto.getRowCode() + "-" + seatDto.getColCode());
                 if (Objects.isNull(seatVo)) {
-                    throw new DaMaiFrameException(BaseCode.SEAT_IS_NOT_NOT_SOLD);
+                    if (Objects.equals(programOrderCreateDto.getProgramId(), 2L)) {
+                        SeatVo pseudo = new SeatVo();
+                        pseudo.setId(uidGenerator.getId());
+                        pseudo.setProgramId(programOrderCreateDto.getProgramId());
+                        pseudo.setTicketCategoryId(seatDto.getTicketCategoryId());
+                        pseudo.setRowCode(seatDto.getRowCode());
+                        pseudo.setColCode(seatDto.getColCode());
+                        pseudo.setSeatType(seatDto.getSeatType());
+                        pseudo.setPrice(seatDto.getPrice());
+                        pseudo.setSellStatus(SellStatus.NO_SOLD.getCode());
+                        seatVo = pseudo;
+                    } else {
+                        throw new DaMaiFrameException(BaseCode.SEAT_IS_NOT_NOT_SOLD);
+                    }
+                }
+                if (Objects.equals(programOrderCreateDto.getProgramId(), 2L)) {
+                    seatVo.setPrice(seatDto.getPrice());
                 }
                 purchaseSeatList.add(seatVo);
                 parameterOrderPrice = parameterOrderPrice.add(seatDto.getPrice());
@@ -203,6 +227,25 @@ public class ProgramOrderService {
         }
         Long programId = programOrderCreateDto.getProgramId();
         List<SeatDto> seatDtoList = programOrderCreateDto.getSeatDtoList();
+        if (CollectionUtil.isNotEmpty(seatDtoList)) {
+            Map<Long, Map<String, SeatVo>> ticketCategorySeatMap = new HashMap<>(16);
+            for (SeatDto seatDto : seatDtoList) {
+                if (Objects.isNull(seatDto.getId()) || seatDto.getId() <= 0) {
+                    Long ticketCategoryId = seatDto.getTicketCategoryId();
+                    Map<String, SeatVo> seatMap = ticketCategorySeatMap.computeIfAbsent(ticketCategoryId, k ->
+                            seatService.getSeatVoListByCacheResolution(programId, k).stream()
+                                    .filter(s -> Objects.equals(s.getSellStatus(), SellStatus.NO_SOLD.getCode()))
+                                    .collect(Collectors.toMap(s -> s.getRowCode() + "-" + s.getColCode(), s -> s, (v1, v2) -> v2))
+                    );
+                    SeatVo matchSeat = seatMap.get(seatDto.getRowCode() + "-" + seatDto.getColCode());
+                    if (Objects.isNull(matchSeat)) {
+                        throw new DaMaiFrameException(BaseCode.SEAT_IS_NOT_NOT_SOLD);
+                    }
+                    seatDto.setId(matchSeat.getId());
+                    seatDto.setPrice(matchSeat.getPrice());
+                }
+            }
+        }
         List<String> keys = new ArrayList<>();
         String[] data = new String[2];
         JSONArray jsonArray = new JSONArray();
