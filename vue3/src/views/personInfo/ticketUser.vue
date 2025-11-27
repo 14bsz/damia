@@ -211,7 +211,7 @@ function reset(){
         border: 1px solid #efefef;
         height: 38px;
         overflow: hidden;
-        background: rgba(255, 55, 29, 0.85) repeat-x;
+        background: #FF2D55 repeat-x;
         padding: 0 15px;
         line-height: 38px;
         color: #ffffff;
@@ -222,7 +222,7 @@ function reset(){
         margin-top: 23px;
           .addUser{
             margin: 0px 0px 10px 86%;
-            background-color: rgba(255, 55, 29, 0.85);
+            background-color: #FF2D55;
             color: #fff;
           }
         .addTicketUserInfo{
@@ -230,7 +230,7 @@ function reset(){
           .title{
             width: 136px;
             line-height: 36px;
-            border-bottom: 2px solid rgba(255, 55, 29, 0.85);;
+            border-bottom: 2px solid #FF2D55;
             padding-left: 15px;
             font-size: 16px;
             color: #333333;
@@ -244,7 +244,7 @@ function reset(){
           .ticketForm{
             margin-top: 2px;
             .save{
-              background-color: rgba(255, 55, 29, 0.85);
+              background-color: #FF2D55;
               color: #fff;
             }
           }
