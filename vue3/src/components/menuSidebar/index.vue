@@ -131,7 +131,7 @@ const props = defineProps({
 }
 
 .mb-2 {
-  background: rgba(255, 55, 29, 0.85) no-repeat;
+  background: #FF2D55 no-repeat;
   width: 205px;
   height: 33px;
   position: relative;
