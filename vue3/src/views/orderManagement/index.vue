@@ -33,11 +33,12 @@
             <div class="money">(含运费￥0.00)</div>
           </li>
           <li>
-            <div class="orderStatus">{{ getOrderStatus(order.orderStatus) }}</div>
+            <div class="orderStatus" :class="statusClassName(order.orderStatus)">{{ getOrderStatus(order.orderStatus) }}</div>
+            <div class="countdown" v-if="order.orderStatus == 1 && remainText(order.orderNumber)">剩余支付时间：{{ remainText(order.orderNumber) }}</div>
           </li>
           <li>
             <div class="btn-col">
-              <template v-if="order.orderStatus == 1">
+              <template v-if="order.orderStatus == 1 && remainText(order.orderNumber)">
                 <button class="order-btn pay" aria-label="支付订单" @click="goPay(order.orderNumber)">支付</button>
                 <button class="order-btn cancel" aria-label="取消订单" @click="openCancelDialog(order.orderNumber)">
                   取消订单
@@ -77,7 +78,7 @@
 </template>
 
 <script setup name="OrderManagement">
-import {ref, onMounted, getCurrentInstance, nextTick, reactive} from 'vue'
+import {ref, onMounted, getCurrentInstance, nextTick, reactive, watch, onBeforeUnmount} from 'vue'
 import MenuSideBar from '../../components/menuSidebar/index'
 import Header from '../../components/header/index'
 import Footer from '../../components/footer/index'
@@ -155,6 +156,112 @@ function goPay(orderNumber) {
 
 onMounted(() => {
   getOrderList()
+})
+
+const remainMap = reactive({})
+const expireMap = reactive({})
+let countdownTimer = null
+let pollTimer = null
+const canceledSet = new Set()
+
+function parseCreateTime(order){
+  const t = order.createOrderTime ?? order.create_order_time ?? order.createTime ?? order.create_time
+  if (!t) return null
+  if (typeof t === 'number') return t
+  const ts = Date.parse(t)
+  return isNaN(ts) ? null : ts
+}
+
+function initCountdown(){
+  Object.keys(remainMap).forEach(k => delete remainMap[k])
+  Object.keys(expireMap).forEach(k => delete expireMap[k])
+  orderList.value?.forEach?.(o => {
+    if (o.orderStatus == 1){
+      const ct = parseCreateTime(o)
+      if (ct){
+        expireMap[o.orderNumber] = ct + 15*60*1000
+      }
+    }
+  })
+  if (countdownTimer) { clearInterval(countdownTimer); countdownTimer = null }
+  if (Object.keys(expireMap).length){
+    const tick = () => {
+      const now = Date.now()
+      for (const k in expireMap){
+        const diffRaw = expireMap[k] - now
+        if (diffRaw <= 0){
+          remainMap[k] = ''
+          delete expireMap[k]
+          
+          // 倒计时结束，立即更新本地状态为交易关闭
+          const idx = orderList.value?.findIndex?.(o => o.orderNumber === k) ?? -1
+          if (idx > -1){
+            orderList.value[idx].orderStatus = 2
+          }
+
+          if (!canceledSet.has(k)){
+            canceledSet.add(k)
+            cancelOrderApi({orderNumber: k}).catch(() => {})
+          }
+        } else {
+          const diff = diffRaw
+          const mm = String(Math.floor(diff/60000)).padStart(2,'0')
+          const ss = String(Math.floor((diff%60000)/1000)).padStart(2,'0')
+          remainMap[k] = mm + ':' + ss
+        }
+      }
+    }
+    tick()
+    countdownTimer = setInterval(tick, 1000)
+  }
+}
+
+function remainText(orderNumber){
+  return remainMap[orderNumber] || ''
+}
+
+watch(orderList, () => {
+  initCountdown()
+})
+
+onBeforeUnmount(() => {
+  if (countdownTimer) { clearInterval(countdownTimer) }
+  if (pollTimer) { clearInterval(pollTimer) }
+  document.removeEventListener('visibilitychange', handleVisibilityChange)
+  window.removeEventListener('focus', handleFocus)
+})
+
+function statusClassName(code){
+  if (code == 1) return 'pending'
+  if (code == 3) return 'paid'
+  if (code == 2) return 'closed'
+  if (code == 4) return 'canceled'
+  return ''
+}
+
+function handleVisibilityChange(){
+  if (!document.hidden){
+    getOrderList()
+  }
+}
+
+function handleFocus(){
+  getOrderList()
+}
+
+function startPolling(){
+  if (pollTimer) { clearInterval(pollTimer) }
+  pollTimer = setInterval(() => {
+    if (!document.hidden){
+      getOrderList()
+    }
+  }, 30000)
+}
+
+onMounted(() => {
+  document.addEventListener('visibilitychange', handleVisibilityChange)
+  window.addEventListener('focus', handleFocus)
+  startPolling()
 })
 </script>
 
@@ -287,14 +394,53 @@ onMounted(() => {
         li:nth-child(4) {
           width: 133px;
           display: flex;
+          flex-direction: column;
           align-items: center;
           justify-content: center;
+          gap: 8px;
           border-right: 1px solid #ebebeb;
           text-align: center;
 
           .orderStatus {
-            width: 100%;
+            width: auto;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: 6px 10px;
+            border-radius: 999px;
+            font-size: 12px;
+            font-weight: 600;
+            border: 1px solid #e6e6e6;
+            background: #f7f8fa;
+            color: #333;
+          }
 
+          .orderStatus.pending{
+            color: #FF2D55;
+            background: #FFF5F7;
+            border-color: #FFD9E2;
+          }
+          .orderStatus.paid{
+            color: #389e0d;
+            background: #f6ffed;
+            border-color: #b7eb8f;
+          }
+          .orderStatus.closed,
+          .orderStatus.canceled{
+            color: #595959;
+            background: #f5f5f5;
+            border-color: #d9d9d9;
+          }
+
+          .countdown{
+            margin-top: 6px;
+            font-size: 12px;
+            color: #FF2D55;
+            background: #FFF5F7;
+            border: 1px solid #FFD9E2;
+            border-radius: 999px;
+            padding: 4px 8px;
+            display: inline-block;
           }
 
         }
@@ -321,14 +467,14 @@ onMounted(() => {
             cursor: pointer;
 
             &.pay {
-              background-color: rgba(255, 55, 29, 0.85);
+              background-color: #FF2D55;
               color: #fff;
             }
 
             &.cancel {
               background-color: #fff;
-              color: rgba(255, 55, 29, 0.85);
-              border: 1px solid rgba(255, 55, 29, 0.85);
+              color: #FF2D55;
+              border: 1px solid #FF2D55;
             }
           }
         }
