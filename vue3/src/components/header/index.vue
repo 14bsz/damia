@@ -299,7 +299,7 @@ function getProgramSearchList() {
       }
 
       .routeHome.router-link-active {
-        color: rgba(255, 55, 29, 0.85);
+        color: #FF2D55;
       }
 
       .routeType {
@@ -339,7 +339,7 @@ function getProgramSearchList() {
         border-top-left-radius: 46px;
         border-bottom-left-radius: 46px;
         background-color: #f8f8f8;
-        border-right-color: rgba(255, 55, 29, 0.85);
+        border-right-color: #FF2D55;
         box-sizing: content-box;
 
         :deep .el-input-group__prepend {
@@ -359,14 +359,19 @@ function getProgramSearchList() {
         position: absolute;
         right: 0;
         top: 0;
-        background: rgba(255, 55, 29, 0.85);
+        background: #FF2D55;
         font-size: 16px;
         text-align: center;
         color: #FFF;
         border-radius: 0 27px 27px 0;
         z-index: 11;
-        letter-spacing: 4px;
+        letter-spacing: 1px;
         cursor: pointer;
+
+        :deep(span) {
+          font-weight: 600;
+          letter-spacing: 1px;
+        }
       }
     }
 
