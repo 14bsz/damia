@@ -91,6 +91,7 @@ const programId = Number(route.params.id)
 const relate = ref({ priceList: [], seatVoMap: {} })
 const detail = ref(null)
 const selectedSeats = ref([])
+const seatTicketIdMap = ref({})
 
 // Configuration
 const TOTAL_SEATS_TARGET = 500
@@ -165,10 +166,12 @@ function generateLayoutSeats(realSeats) {
         const seatId = 100000 + result.length
         const price = priceList.value[zone.priceIdx] || 100
         
+        const realTicketId = resolveTicketCategoryId(price)
+        
         result.push({
           id: seatId,
           programId,
-          ticketCategoryId: zone.priceIdx + 1,
+          ticketCategoryId: realTicketId,
           priceIdx: zone.priceIdx,
           rowCode: r,
           colCode: c,
@@ -185,6 +188,16 @@ function generateLayoutSeats(realSeats) {
   })
   
   return result
+}
+
+function resolveTicketCategoryId(price) {
+  const map = seatTicketIdMap.value || {}
+  if (map && map[price]) return map[price]
+  const cats = Array.isArray(detail.value?.ticketCategoryVoList) ? detail.value.ticketCategoryVoList : []
+  const m = cats.find(x => Number(x.price) === Number(price))
+  if (m) return m.id
+  if (cats.length) return cats[0].id
+  return undefined
 }
 
 function seatStyle(s) {
@@ -230,14 +243,25 @@ function toggleSeat(s) {
 }
 
 function goOrder() {
+  const hasMap = Object.keys(seatTicketIdMap.value || {}).length > 0
+  const cats = Array.isArray(detail.value?.ticketCategoryVoList) ? detail.value.ticketCategoryVoList : []
+  if (!hasMap && !cats.length) {
+    ElMessage.error('票档未加载，请稍后再试')
+    return
+  }
   const seatDtoList = selectedSeats.value.map(s => ({
-    id: s.id > 90000 ? -1 : s.id, // Handle mock IDs
-    ticketCategoryId: s.ticketCategoryId,
+    id: s.id > 90000 ? -1 : s.id,
+    ticketCategoryId: resolveTicketCategoryId(s.price),
     rowCode: s.rowCode,
     colCode: s.colCode,
     seatType: s.seatType,
-    price: s.price
+    price: s.price,
+    zoneName: s.zoneName
   }))
+  if (seatDtoList.some(x => !x.ticketCategoryId)) {
+    ElMessage.error('票档匹配失败，请稍后再试')
+    return
+  }
   
   router.replace({
     path: '/order/index',
@@ -253,11 +277,20 @@ function goOrder() {
 }
 
 onMounted(() => {
+  // 接收从详情页传递的票档映射
+  if (history.state && history.state.seatTicketIdMap) {
+    seatTicketIdMap.value = history.state.seatTicketIdMap
+  }
+  
   getSeatRelateInfo({ programId }).then(res => {
     relate.value = res.data || { priceList: [], seatVoMap: {} }
   })
   getProgramDetials({ id: programId }).then(res => {
     detail.value = res.data || null
+    // 如果详情中有映射且当前没有,使用详情中的
+    if (detail.value && detail.value.seatTicketIdMap && !Object.keys(seatTicketIdMap.value).length) {
+      seatTicketIdMap.value = detail.value.seatTicketIdMap
+    }
   })
 })
 </script>
