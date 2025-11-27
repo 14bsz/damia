@@ -126,7 +126,7 @@ function getIsVaild() {
       border: 1px solid #efefef;
       height: 38px;
       overflow: hidden;
-      background: rgba(255, 55, 29, 0.85) repeat-x;
+      background: #FF2D55 repeat-x;
       padding: 0 15px;
       line-height: 38px;
       color: #ffffff;
@@ -137,7 +137,7 @@ function getIsVaild() {
       margin-top: 23px;
 
       .title {
-        border-bottom: 2px solid rgba(255, 55, 29, 0.85);
+        border-bottom: 2px solid #FF2D55;
         height: 29px;
 
         li {
@@ -158,7 +158,7 @@ function getIsVaild() {
           line-height: 20px;
 
           span {
-            color: rgba(255, 55, 29, 0.85);
+            color: #FF2D55;
             font-size: 28px;
             font-weight: 700;
             line-height: 25px;
@@ -166,7 +166,7 @@ function getIsVaild() {
         }
 
         li.left {
-          background: rgba(255, 55, 29, 0.85) no-repeat scroll -139px -122px;
+          background: #FF2D55;
           display: block;
           line-height: 29px;
           text-align: center;
@@ -237,16 +237,16 @@ function getIsVaild() {
             text-align: center;
             line-height: 30px;
 
-            .pathBtn {
-              background: no-repeat scroll 0 -234px;
-              width: 72px;
-              height: 21px;
-              line-height: 21px;
-              text-align: center;
-              color: rgba(255, 55, 29, 0.85);
-              display: inline-block;
-              font-size: 14px;
-            }
+          .pathBtn {
+            background: no-repeat scroll 0 -234px;
+            width: 72px;
+            height: 21px;
+            line-height: 21px;
+            text-align: center;
+            color: #FF2D55;
+            display: inline-block;
+            font-size: 14px;
+          }
             .btnColor {
               color: #2f97b4;
               font-size: 14px;
