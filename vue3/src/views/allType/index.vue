@@ -17,12 +17,13 @@
                   <ul style="margin-left: 70px">
                     <li v-show="isShow" v-for="(item,index) in cityArr.slice(0,22)" :key="item.id"
                         @click="cityClick(item,index)"
+                        :class="{active: item.name == currentCity}"
                     >
-                      <span v-if="item.name==currentCity" class="active">{{ item.name }}</span>
-                      <span v-else>{{ item.name }}</span>
+                      <span>{{ item.name }}</span>
                     </li>
                     <li v-show="!isShow" v-for="(item,index) in cityArr" :key="item.id"
-                        @click="cityClick(item,index)" :class="{active: activeCityIndex == index}">{{ item.name }}
+                        @click="cityClick(item,index)" :class="{active: activeCityIndex == index}">
+                      <span>{{ item.name }}</span>
                     </li>
 
                   </ul>
@@ -40,12 +41,9 @@
                   <ul>
                     <li v-for="(item,ind) in categoryArr" :key="item.id"
                         @click="categoryClick(item,ind)"
+                        :class="{active: ($route.query.name==item.name) || (item.name==='全部' ? isActive : activeIndex == ind)}"
                     >
-                      <span v-if="$route.query.name==item.name" class="active">{{ item.name }}</span>
-                      <span v-if="$route.query.name!=item.name&&item.name=='全部'" :class="{active:isActive}">全部</span>
-                      <span v-if="$route.query.name!=item.name&&item.name!='全部'" :class="{active: activeIndex == ind}">{{
-                          item.name
-                        }}</span>
+                      <span>{{ item.name }}</span>
                     </li>
                   </ul>
                 </div>
@@ -75,9 +73,8 @@
                         @click="timeClick(item,index)" :class="{active: activeTimeIndex == index}">
                       <span>{{ item.name }}</span>
                     </li>
-                    <li class="liDate">
+                    <li class="liDate" v-if="isShowDate">
                       <el-date-picker
-                          v-if="isShowDate"
                           v-model="value1"
                           type="daterange"
                           start-placeholder="开始时间"
@@ -100,6 +97,7 @@
                   <li v-for="item in cardArr">
                     <router-link :to="{name:'detial',params:{id:item.id}}" class="link">
                       <img :src="item.itemPicture" alt="">
+                      <div class="img-tag" v-if="item.parentProgramCategoryName">{{ item.parentProgramCategoryName }}</div>
                     </router-link>
                     <div class="item-txt">
                       <div class="item-title">
@@ -116,6 +114,7 @@
 
                       <div class="item-content"> {{ item.areaName }} | {{ item.place }}</div>
                       <div class="item-content">{{ formatDateWithWeekday(item.showTime, item.showWeekTime) }}</div>
+                      <div class="item-seat" v-if="item.permitChooseSeat == 1 || item.permitChooseSeat == '1'">可选座</div>
 
                       <div class="item-tag"></div>
                       <div class="item-price">
@@ -138,6 +137,7 @@
                   <li v-for="item in cardArr">
                     <router-link :to="{name:'detial',params:{id:item.id}}" class="link">
                       <img :src="item.itemPicture" alt="">
+                      <div class="img-tag" v-if="item.parentProgramCategoryName">{{ item.parentProgramCategoryName }}</div>
                     </router-link>
                     <div class="item-txt">
                       <div class="item-title">
@@ -153,6 +153,7 @@
                       <div class="item-content" v-if="!titleIsShow"><span>艺人：</span><span  v-html="item.actor"></span> </div>
                       <div class="item-content"> {{ item.areaName }} | {{ item.place }}</div>
                       <div class="item-content">{{ formatDateWithWeekday(item.showTime, item.showWeekTime) }}</div>
+                      <div class="item-seat" v-if="item.permitChooseSeat == 1 || item.permitChooseSeat == '1'">可选座</div>
 
                       <div class="item-tag"></div>
                       <div class="item-price">
@@ -175,6 +176,7 @@
                   <li v-for="item in cardArr">
                     <router-link :to="{name:'detial',params:{id:item.id}}" class="link">
                       <img :src="item.itemPicture" alt="">
+                      <div class="img-tag" v-if="item.parentProgramCategoryName">{{ item.parentProgramCategoryName }}</div>
                     </router-link>
                     <div class="item-txt">
                       <div class="item-title">
@@ -190,6 +192,7 @@
                       <div class="item-content" v-if="!titleIsShow"><span>艺人：</span><span  v-html="item.actor"></span> </div>
                       <div class="item-content"> {{ item.areaName }} | {{ item.place }}</div>
                       <div class="item-content">{{ formatDateWithWeekday(item.showTime, item.showWeekTime) }}</div>
+                      <div class="item-seat" v-if="item.permitChooseSeat == 1 || item.permitChooseSeat == '1'">可选座</div>
 
                       <div class="item-tag"></div>
                       <div class="item-price">
@@ -212,6 +215,7 @@
                   <li v-for="item in cardArr">
                     <router-link :to="{name:'detial',params:{id:item.id}}" class="link">
                       <img :src="item.itemPicture" alt="">
+                      <div class="img-tag" v-if="item.parentProgramCategoryName">{{ item.parentProgramCategoryName }}</div>
                     </router-link>
                     <div class="item-txt">
                       <div class="item-title">
@@ -227,6 +231,7 @@
                       <div class="item-content" v-if="!titleIsShow"><span>艺人：</span><span  v-html="item.actor"></span> </div>
                       <div class="item-content"> {{ item.areaName }} | {{ item.place }}</div>
                       <div class="item-content">{{ formatDateWithWeekday(item.showTime, item.showWeekTime) }}</div>
+                      <div class="item-seat" v-if="item.permitChooseSeat == 1 || item.permitChooseSeat == '1'">可选座</div>
 
                       <div class="item-tag"></div>
                       <div class="item-price">
@@ -316,7 +321,7 @@ const router = useRouter()
 
 const emitter = useMitt();
 
-const goods = ref(5)
+const goods = ref(0)
 
 let count = 0;
 
@@ -337,10 +342,10 @@ const total = ref(0)
 const isShowDate = ref(false)
 const value1 = ref([])
 const timeType = ref(0)
-const cardArr = ref(0)
+const cardArr = ref([])
 const titleIsShow = ref(true)
 const rawHtml = ref('')
-const preferSecondPageOnFirst = ref(true)
+const preferSecondPageOnFirst = ref(false)
 //推荐列表数据
 const recommendList = ref([])
 const isActive = ref(false)
@@ -417,31 +422,34 @@ const getChildrenTypeList = () => {
 const categoryClick = (item, ind) => {
   proxy.$route.query.name = ''
   activeIndex.value = ind
-  if (item.name == '全部') {
+  queryParams.value.pageNum = 1
+  pageParams.value.programCategoryId = undefined
+  if (item.name === '全部') {
     isActive.value = true
-  } else {
-    isActive.value = false
-  }
-  if (parentProgramCategoryId.value = '') {
     isShowChildren.value = false
-  } else {
-    isShowChildren.value = true
-    parentProgramCategoryId.value = item.id;
-    pageParams.value.parentProgramCategoryId = item.id;
-    //推荐节目列表入参中的父节目类型字段
-    recommendParams.parentProgramCategoryId = item.id;
-    if (isActive.value == false) {
-        getChildrenTypeList()
-    }
+    parentProgramCategoryId.value = ''
+    pageParams.value.parentProgramCategoryId = undefined
+    recommendParams.parentProgramCategoryId = undefined
+    activeChildrenIndex.value = ''
     getList()
     getRecommendList()
+    return
   }
-
+  isActive.value = false
+  isShowChildren.value = true
+  parentProgramCategoryId.value = item.id
+  pageParams.value.parentProgramCategoryId = item.id
+  recommendParams.parentProgramCategoryId = item.id
+  activeChildrenIndex.value = ''
+  getChildrenTypeList()
+  getList()
+  getRecommendList()
 }
 //点击城市
 const cityClick = (item, index) => {
   activeCityIndex.value = index
   currentCity.value = item.name
+  queryParams.value.pageNum = 1
   pageParams.value.areaId = item.id
   //推荐节目列表入参中的区域字段
   recommendParams.areaId = item.id
@@ -451,13 +459,21 @@ const cityClick = (item, index) => {
 //点击子类
 const childrenClick = (item, index) => {
   activeChildrenIndex.value = index
-  pageParams.value.programCategoryId = item.id
+  queryParams.value.pageNum = 1
+  if (item.name === '全部') {
+    pageParams.value.programCategoryId = undefined
+    pageParams.value.parentProgramCategoryId = parentProgramCategoryId.value
+  } else {
+    pageParams.value.programCategoryId = item.id
+    pageParams.value.parentProgramCategoryId = undefined
+  }
   getList()
 }
 //点击时间
 const timeClick = (item, index) => {
   activeTimeIndex.value = index
   timeType.value = item.id
+  queryParams.value.pageNum = 1
   pageParams.value.timeType = item.id
   if (item.id == 5) {
     isShowDate.value = true
@@ -471,6 +487,7 @@ const timeClick = (item, index) => {
 
 }
 const handleChangeDate = (selection) => {
+  queryParams.value.pageNum = 1
   pageParams.value.startDateTime = getCurrentDate(selection[0])
   pageParams.value.endDateTime = getCurrentDate(selection[1])
   getList()
@@ -505,12 +522,12 @@ const timeArr = ref(
 
 const getList = () => {
   pageParams.value.timeType = timeType.value
-  const requestedPageNumber = preferSecondPageOnFirst.value ? (queryParams.value.pageNum === 1 ? 2 : (queryParams.value.pageNum === 2 ? 1 : queryParams.value.pageNum)) : queryParams.value.pageNum
-  pageParams.value.pageNumber = requestedPageNumber
+  pageParams.value.pageNumber = queryParams.value.pageNum
   pageParams.value.pageSize = queryParams.value.pageSize
   getProgramPageType(pageParams.value).then(response => {
     cardArr.value = response.data.list
     total.value = Number(response.data.totalSize)
+    goods.value = Number(response.data.totalSize) || (Array.isArray(response.data.list) ? response.data.list.length : 0)
   })
 }
 
@@ -584,6 +601,7 @@ onMounted(() => {
     cardArr.value = data.list
     total.value = Number(data.totalSize)
     titleIsShow.value = false
+    goods.value = Number(data.totalSize) || (Array.isArray(data.list) ? data.list.length : 0)
 
   })
 })
@@ -608,12 +626,28 @@ function removeTag(str, tag) {
   margin: 0 auto;
 
   .goods {
+    display: flex;
+    align-items: center;
+    gap: 8px;
     line-height: 50px;
     color: #666;
-    font-size: 14px;
+    font-size: 15px;
+    font-weight: 500;
 
     span {
       color: rgba(255, 55, 29, 0.85);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 36px;
+      height: 26px;
+      padding: 0 12px;
+      border: 1px solid rgba(255, 55, 29, 0.25);
+      border-radius: 999px;
+      background: linear-gradient(180deg, rgba(255, 55, 29, 0.08) 0%, rgba(255, 55, 29, 0.06) 100%);
+      font-weight: 600;
+      font-variant-numeric: tabular-nums lining-nums;
+      box-shadow: inset 0 1px 2px rgba(0,0,0,0.03);
     }
   }
 
@@ -630,6 +664,8 @@ function removeTag(str, tag) {
           padding: 0 24px;
           border: 1px solid #e9e9e9;
           min-height: 300px;
+          border-radius: 12px;
+          background: #fff;
 
           div.city {
             display: inline-block;
@@ -647,12 +683,20 @@ function removeTag(str, tag) {
                 display: inline-block;
                 height: 26px;
                 line-height: 26px;
-                padding: 0 8px;
-                margin-right: 20px;
+                padding: 0 12px;
+                margin-right: 12px;
+                margin-bottom: 10px;
                 color: #333;
                 white-space: nowrap;
                 cursor: pointer;
+                border: 1px solid #e9e9e9;
+                border-radius: 999px;
+                transition: all .2s ease;
+                user-select: none;
               }
+              li:hover { border-color: rgba(255, 55, 29, 0.85); transform: translateY(-1px); }
+              li.active { border-color: rgba(255, 55, 29, 0.45); background: rgba(255, 55, 29, 0.05); color: rgba(255, 55, 29, 0.85); font-weight: 600; }
+              .active { border: 1px solid rgba(255, 55, 29, 0.25); border-radius: 12px; background: transparent !important; color: rgba(255, 55, 29, 0.85) !important; font-weight: 600; padding: 0 8px; }
 
               .liDate {
                 width: 320px;
@@ -677,6 +721,8 @@ function removeTag(str, tag) {
 
         .box-sort {
           .box-tabs {
+            :deep(.el-tabs__item) { font-weight: 600; padding: 0 18px; transition: color .2s ease; }
+            :deep(.el-tabs__item.is-active) { color: rgba(255, 55, 29, 0.85); }
             ul {
               margin: 0;
               padding: 0;
@@ -684,52 +730,77 @@ function removeTag(str, tag) {
               li {
                 list-style-type: none;
                 position: relative;
-                padding: 25px 0 18px;
-                border-bottom: 1px dotted #cecece;
-                margin: 0 10px;
+                display: flex;
+                align-items: flex-start;
+                padding: 16px 16px 18px;
+                border-bottom: none;
+                margin: 12px 10px;
                 height: 250px;
+                background: #fff;
+                border: 1px solid #eaeaea;
+                border-radius: 12px;
+                box-shadow: 0 4px 12px rgba(0,0,0,0.06);
+                transition: transform .2s ease, box-shadow .2s ease;
+                &:hover { transform: translateY(-2px); box-shadow: 0 8px 20px rgba(0,0,0,0.08); }
 
-                .link {
-                  position: relative;
-                  display: block;
-                  width: 153px;
-                  height: 206px;
-                  overflow: hidden;
-                  margin-right: 20px;
-                  float: left;
+              .link {
+                position: relative;
+                display: block;
+                width: 153px;
+                height: 206px;
+                overflow: hidden;
+                margin-right: 20px;
+                flex: 0 0 153px;
 
                   img {
                     width: 100%;
                     height: 100%;
+                    object-fit: cover;
+                    border-radius: 8px;
                   }
 
-                }
+                  .img-tag {
+                    position: absolute;
+                    top: 8px;
+                    left: 8px;
+                    background: rgba(255, 55, 29, 0.85);
+                    color: #fff;
+                    font-size: 12px;
+                    padding: 2px 8px;
+                    border-radius: 6px;
+                  }
+
+              }
 
                 .item-txt {
 
-                  width: 670px;
+                  flex: 1;
                   line-height: 24px;
-                  float: left;
+                  position: relative;
+                  display: grid;
+                  grid-auto-rows: min-content;
+                  row-gap: 6px;
+                  padding-bottom: 44px;
 
                   .item-title {
-                    margin-bottom: 6px;
-                    font-size: 16px;
-                    font-weight: 400;
+                    margin-bottom: 8px;
+                    font-size: 18px;
+                    font-weight: 600;
 
-                    span {
-                    }
+                    span { margin-right: 6px; }
 
                     .link-detial {
                       color: #333;
                       text-decoration: none;
                       outline: 0;
+                      transition: color .2s ease;
 
 
                     }
                   }
 
                   .item-content {
-                    margin-bottom: 6px;
+                    margin-bottom: 10px;
                     overflow: hidden;
                     white-space: nowrap;
                     text-overflow: ellipsis;
@@ -744,6 +815,9 @@ function removeTag(str, tag) {
                     bottom: 12px;
                     color: #999;
                     overflow: hidden;
+                    display: flex;
+                    align-items: center;
+                    gap: 8px;
 
                     .price {
                       color: rgba(255, 55, 29, 0.85);
@@ -754,6 +828,16 @@ function removeTag(str, tag) {
                       font-weight: bold;
                     }
 
+                  }
+
+                  .item-seat {
+                    display: inline-block;
+                    font-size: 12px;
+                    color: rgba(255, 55, 29, 0.85);
+                    border: 1px solid rgba(255, 55, 29, 0.25);
+                    border-radius: 12px;
+                    padding: 0 8px;
+                    margin-top: 6px;
                   }
                 }
               }
@@ -828,13 +912,8 @@ function removeTag(str, tag) {
 }
 
 .active {
-  background-color: rgba(255, 55, 29, 0.85);
-  color: #ffffff !important;
-  display: inline-block;
-  height: 26px;
-  line-height: 26px;
-  white-space: nowrap;
-  cursor: pointer;
+  background-color: transparent;
+  color: rgba(255, 55, 29, 0.85) !important;
 }
 
 :deep(.el-icon svg) {
@@ -848,6 +927,19 @@ function removeTag(str, tag) {
   display: inline-block;
   color: #968788;
   text-align: center;
+}
+
+:deep(.el-collapse-item__header .active) {
+  display: inline-flex;
+  align-items: center;
+  height: 26px;
+  line-height: 26px;
+  padding: 0 10px;
+  border: 1px solid rgba(255, 55, 29, 0.25);
+  border-radius: 999px;
+  background: rgba(255, 55, 29, 0.05);
+  color: rgba(255, 55, 29, 0.85) !important;
+  font-weight: 600;
 }
 
 
