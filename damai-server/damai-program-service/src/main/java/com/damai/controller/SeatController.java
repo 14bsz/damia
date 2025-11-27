@@ -36,10 +36,5 @@ public class SeatController {
     public ApiResponse<Boolean> batchAdd(@Valid @RequestBody SeatBatchAddDto seatBatchAddDto) {
         return ApiResponse.ok(seatService.batchAdd(seatBatchAddDto));
     }
-    
-    @Operation(summary  = "查询座位相关信息")
-    @PostMapping(value = "/relate/info")
-    public ApiResponse<SeatRelateInfoVo> relateInfo(@Valid @RequestBody SeatListDto seatListDto) {
-        return ApiResponse.ok(seatService.relateInfo(seatListDto));
-    }
 }
+
