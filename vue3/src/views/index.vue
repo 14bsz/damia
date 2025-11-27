@@ -190,7 +190,7 @@ function getMainCategoryList() {
           width: 48px;
           height: 48px;
           margin: 0 auto;
-          background: url("/src/assets/section/sprit.png") no-repeat;
+          background: url("@/assets/section/sprit.png") no-repeat;
           background-size: 100% auto;
         }
 
@@ -388,4 +388,3 @@ function getMainCategoryList() {
 
 
 </style>
-
