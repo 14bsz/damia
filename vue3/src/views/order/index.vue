@@ -4,10 +4,18 @@
       <div class="basic-info1">
         <div class="top">
           <span class="title">{{detailList.title}}</span>
-          <span class="local">{{ detailList.areaName }}|{{ detailList.place }}</span>
+          <span class="local">{{ detailList.areaName }} | {{ detailList.place }}</span>
           <div class="line"></div>
-          <div class="time"><span>{{ formatDateWithWeekday(detailList.showTime, detailList.showWeekTime) }}</span></div>
-          <div class="money"><span>{{ displayTicketLabel }}</span></div>
+          <div class="selected-group">
+            <div class="time"><span>{{ formatDateWithWeekday(detailList.showTime, detailList.showWeekTime) }}</span></div>
+            <div class="money"><span>{{ displayTicketLabel }}</span></div>
+            <div class="selected-list" v-if="seatDtoListRef && seatDtoListRef.length">
+              <span class="sel-tag" v-for="(s,i) in displaySeatTags" :key="i">
+                {{ s.label }}
+                <span class="price-tag">￥{{ s.price }}</span>
+              </span>
+            </div>
+          </div>
           <div class="order-info">
             <span>按付款顺序配票，优先连座配票</span>
           </div>
@@ -242,6 +250,14 @@ const displayTicketLabel = computed(() => {
   const name = cat ? (cat.introduce || '') : '票档'
   const count = Number(num.value || 1)
   return `${name}x${count}张`
+})
+
+const displaySeatTags = computed(() => {
+  const list = seatDtoListRef.value || []
+  return list.map(s => ({
+    label: `${s.zoneName ? s.zoneName + ' ' : ''}${s.rowCode}排${s.colCode}座`,
+    price: Number(s.price || 0)
+  }))
 })
 
 //跳转后的接收值
@@ -560,6 +576,7 @@ onBeforeUnmount(() => {
           color: rgb(255, 255, 255);
           font-weight: bold;
           height: auto;
+          transform: translateX(-9px);
         }
 
         .local {
@@ -568,7 +585,7 @@ onBeforeUnmount(() => {
           flex-shrink: 0;
           flex-grow: 0;
           margin-right: 0;
-          font-size: 18px;
+          font-size: 22px;
           margin-left: 0;
           width: fit-content;
           overflow: hidden;
@@ -595,6 +612,56 @@ onBeforeUnmount(() => {
           max-width: 1800px;
           margin-top: 24px;
           height: 1px;
+        }
+
+        .selected-group {
+          margin-top: -22px;
+          
+          .time span {
+            font-size: 22px;
+            font-weight: 600;
+          }
+          .money span {
+            font-size: 22px;
+            font-weight: 700;
+          }
+          .selected-list .sel-tag {
+            font-size: 18px;
+          }
+          .selected-list .price-tag {
+            font-size: 18px;
+          }
+        }
+
+        .selected-list {
+          margin-top: 10px;
+          display: flex;
+          flex-wrap: wrap;
+          gap: 8px;
+        }
+
+        .sel-tag {
+          display: inline-flex;
+          align-items: center;
+          gap: 6px;
+          background: rgba(255, 255, 255, 0.15);
+          border: 1px solid rgba(255, 255, 255, 0.4);
+          border-radius: 4px;
+          padding: 4px 8px;
+          color: #fff;
+          
+        }
+
+        .price-tag {
+          color: #fff;
+          font-weight: 600;
+        }
+
+        .selected-group, .selected-group .time, .selected-group .money, .selected-group .selected-list {
+          text-align: left;
+        }
+        .selected-group .time, .selected-group .money {
+          justify-content: flex-start;
         }
 
         .time {
@@ -683,7 +750,7 @@ onBeforeUnmount(() => {
           flex-grow: 0;
           height: fit-content;
           span{
-            font-size: 16px;
+            font-size: 22px;
             font-weight: 500;
           }
         }
@@ -716,7 +783,7 @@ onBeforeUnmount(() => {
             background: #fff0ed;
             border: 1px solid rgba(255, 55, 29, 0.85);
             color: rgba(255, 55, 29, 0.85);
-            font-size: 18px;
+            font-size: 20px;
             font-weight: 600;
           }
           .service-name{
@@ -747,6 +814,7 @@ onBeforeUnmount(() => {
               width: fit-content;
               height: 33px;
               line-height: 33px;
+              font-size: 20px;
             }
           }
 
@@ -816,15 +884,16 @@ onBeforeUnmount(() => {
           }
         }
         .right{
-          float: left;
-          margin-left: 24px;
+          float: right;
+          margin-left: 0;
+          text-align: right;
           .btn{
             position: relative;
             display: flex;
             flex-shrink: 1;
             flex-grow: 0;
             overflow: hidden;
-            margin-right: 43px;
+            margin-right: 0;
             background-color: rgba(255, 55, 29, 0.85);
             place-self: center flex-end;
             box-shadow: rgba(255, 55, 29, 0.85) 0px 0px 0px 1px inset;
@@ -839,6 +908,7 @@ onBeforeUnmount(() => {
           width: 100%;
           padding: 0;
           margin-top: 20px;
+          clear: both;
           display: flex;
           flex-wrap: wrap;
           gap: 15px;
