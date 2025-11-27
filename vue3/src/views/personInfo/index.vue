@@ -142,7 +142,7 @@ async function getPersonInfoIdList() {
       border: 1px solid #efefef;
       height: 38px;
       overflow: hidden;
-      background: rgba(255, 55, 29, 0.85) repeat-x;
+      background: #FF2D55 repeat-x;
       padding: 0 15px;
       line-height: 38px;
       color: #ffffff;
@@ -153,7 +153,7 @@ async function getPersonInfoIdList() {
       margin-top: 23px;
 
       .title {
-        border-bottom: 2px solid rgba(255, 55, 29, 0.85);
+        border-bottom: 2px solid #FF2D55;
         height: 29px;
 
         li {
@@ -174,7 +174,7 @@ async function getPersonInfoIdList() {
           line-height: 20px;
 
           span {
-            color: rgba(255, 55, 29, 0.85);
+            color: #FF2D55;
             font-size: 28px;
             font-weight: 700;
             line-height: 25px;
@@ -182,7 +182,7 @@ async function getPersonInfoIdList() {
         }
 
         li.left {
-          background: rgba(255, 55, 29, 0.85) no-repeat scroll -139px -122px;
+          background: #FF2D55;
           display: block;
           line-height: 29px;
           text-align: center;
@@ -214,7 +214,7 @@ async function getPersonInfoIdList() {
 
         .btn {
           margin-left: 150px;
-          background: rgba(255, 55, 29, 0.85) no-repeat;
+          background: #FF2D55;
           width: 73px;
           height: 25px;
           border: 0;
