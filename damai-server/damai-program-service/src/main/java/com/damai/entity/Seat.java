@@ -30,17 +30,22 @@ public class Seat extends BaseTableData implements Serializable {
      * 节目表id
      */
     private Long programId;
-    
+
     /**
      * 节目票档id
-     * */
+     */
     private Long ticketCategoryId;
-    
+
+    /**
+     * 区域名称
+     */
+    private String zoneName;
+
     /**
      * 排号
      */
     private Integer rowCode;
-    
+
     /**
      * 列号
      */
