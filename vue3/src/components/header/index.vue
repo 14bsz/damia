@@ -468,132 +468,80 @@ function getProgramSearchList() {
 
 
 .city {
-  width: 626px;
-  z-index: 999;
+  width: 600px;
   position: relative;
   left: -115px;
   top: -72px;
   margin-top: 60px;
-  background: #FFF;
-  border: 1px solid #F4F4F4;
-  box-shadow: 0 2px 8px 0 rgba(0, 0, 0, .05);
-  border-radius: 2px;
-  padding: 21px;
-  max-height: 1500px;
-  overflow: hidden;
+  z-index: 999;
+  background: #ffffff;
+  border: 1px solid #ebebeb;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.08);
+  border-radius: 12px;
+  padding: 24px;
+  box-sizing: border-box;
+
+  .now-city, .hot-city, .others-city {
+    display: flex;
+    align-items: flex-start;
+  }
+
+  .title-city {
+    width: 80px;
+    font-size: 14px;
+    color: #909399;
+    line-height: 32px;
+    flex-shrink: 0;
+    font-weight: 400;
+  }
 
   .now-city {
-    line-height: 25px;
-
-    .title-city {
-      width: 86px;
-      display: inline-block;
-      margin-right: 15px;
-      vertical-align: top;
-      font-size: 16px;
-      color: #111;
-      letter-spacing: .56px;
-      float: left;
-
-    }
-
+    margin-bottom: 12px;
     .city-name {
       display: inline-block;
-      margin-right: 15px;
-      vertical-align: top;
-      font-size: 16px;
-      color: #111;
-      letter-spacing: .56px;
-      float: left;
-
-    }
-
-    .select-city {
-      color: rgba(255, 55, 29, 0.85);
-      background-color: #fff4f8;
-      padding: 0 10px;
+      font-size: 14px;
+      line-height: 32px;
+      padding: 0 16px;
+      border-radius: 16px;
+      
+      &.select-city {
+        background: #FF2D55;
+        color: #fff;
+        font-weight: 500;
+        box-shadow: 0 4px 12px rgba(255, 45, 85, 0.3);
+      }
     }
   }
 
-  .hot-city {
-    line-height: 25px;
-    margin-top: 40px;
+  .list-city {
+    flex: 1;
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
 
-    .title-city {
-      width: 86px;
-      display: inline-block;
-      margin-right: 15px;
-      vertical-align: top;
-      font-size: 16px;
-      color: #111;
-      letter-spacing: .56px;
-      float: left;
-    }
+    .city-name {
+      font-size: 14px;
+      color: #303133;
+      padding: 0 6px;
+      line-height: 28px;
+      border-radius: 4px;
+      cursor: pointer;
+      transition: all 0.2s ease;
 
-    .list-city {
-      list-style: none;
-      width: 525px;
-      //display: inline-block;
-      line-height: 29px;
-      margin-top: -3px;
-
-
-      .city-name {
-
-        display: inline-block;
-        margin-right: 15px;
-        vertical-align: top;
-        font-size: 16px;
-        color: #111;
-        letter-spacing: .56px;
-
-        &:hover {
-          color: rgba(255, 55, 29, 0.85);
-          cursor: pointer;
-        }
+      &:hover {
+        color: #FF2D55;
+        background-color: rgba(255, 45, 85, 0.06);
       }
     }
   }
 
   .others-city {
-    line-height: 25px;
-    padding-top: 15px;
-    border-top: 1px solid #EEE;
-    margin-top: 15px;
-
-    .title-city {
-      display: inline-block;
-      margin-right: 15px;
-      vertical-align: top;
-      font-size: 16px;
-      color: #111;
-      letter-spacing: .56px;
-      float: left;
-      width: 86px;
-    }
-
-    .list-city {
-      list-style: none;
-      width: 525px;
-      //display: inline-block;
-      line-height: 29px;
-      margin-top: -3px;
-
-      .city-name {
-        display: inline-block;
-        margin-right: 15px;
-        vertical-align: top;
-        font-size: 16px;
-        color: #111;
-        letter-spacing: .56px;
-        float: left;
-
-        &:hover {
-          color: rgba(255, 55, 29, 0.85);
-          cursor: pointer;
-        }
-      }
-    }
+    margin-top: 16px;
+    padding-top: 16px;
+    border-top: 1px solid #f2f2f2;
   }
 }
 
