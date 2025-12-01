@@ -8,11 +8,14 @@ import com.damai.dto.OrderGetDto;
 import com.damai.dto.OrderListDto;
 import com.damai.dto.OrderPayCheckDto;
 import com.damai.dto.OrderPayDto;
+import com.damai.dto.OrderSoldSeatListDto;
 import com.damai.service.OrderService;
 import com.damai.vo.AccountOrderCountVo;
 import com.damai.vo.OrderGetVo;
 import com.damai.vo.OrderListVo;
 import com.damai.vo.OrderPayCheckVo;
+import com.damai.vo.SoldSeatSimpleVo;
+import com.damai.vo.OrderStatusPushVo;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
@@ -22,6 +25,9 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.util.List;
 
@@ -94,5 +100,23 @@ public class OrderController {
     @PostMapping(value = "/cancel")
     public ApiResponse<Boolean> cancel(@Valid @RequestBody OrderCancelDto orderCancelDto) {
         return ApiResponse.ok(orderService.initiateCancel(orderCancelDto));
+    }
+    
+    @Operation(summary  = "查询某个节目已售座位(前端调用)")
+    @PostMapping(value = "/sold/seat/list")
+    public ApiResponse<List<SoldSeatSimpleVo>> soldSeatList(@Valid @RequestBody OrderSoldSeatListDto dto) {
+        return ApiResponse.ok(orderService.selectSoldSeatList(dto));
+    }
+    
+    @Operation(summary  = "订单状态订阅(前端SSE订阅实时状态)")
+    @GetMapping(value = "/status/subscribe")
+    public SseEmitter statusSubscribe(@RequestParam("orderNumber") Long orderNumber) {
+        return orderService.statusSubscribe(orderNumber);
+    }
+
+    @Operation(summary  = "座位状态订阅(前端SSE订阅实时座位变化)")
+    @GetMapping(value = "/seat/status/subscribe")
+    public SseEmitter seatStatusSubscribe(@RequestParam("programId") Long programId) {
+        return orderService.seatStatusSubscribe(programId);
     }
 }

@@ -14,21 +14,7 @@ import com.damai.client.PayClient;
 import com.damai.client.UserClient;
 import com.damai.common.ApiResponse;
 import com.damai.core.RedisKeyManage;
-import com.damai.dto.AccountOrderCountDto;
-import com.damai.dto.NotifyDto;
-import com.damai.dto.OrderCancelDto;
-import com.damai.dto.OrderCreateDto;
-import com.damai.dto.OrderGetDto;
-import com.damai.dto.OrderListDto;
-import com.damai.dto.OrderPayCheckDto;
-import com.damai.dto.OrderPayDto;
-import com.damai.dto.OrderTicketUserCreateDto;
-import com.damai.dto.PayDto;
-import com.damai.dto.ProgramOperateDataDto;
-import com.damai.dto.RefundDto;
-import com.damai.dto.TicketCategoryCountDto;
-import com.damai.dto.TradeCheckDto;
-import com.damai.dto.UserGetAndTicketUserListDto;
+import com.damai.dto.*;
 import com.damai.entity.Order;
 import com.damai.entity.OrderTicketUser;
 import com.damai.entity.OrderTicketUserAggregate;
@@ -57,8 +43,11 @@ import com.damai.vo.NotifyVo;
 import com.damai.vo.OrderGetVo;
 import com.damai.vo.OrderListVo;
 import com.damai.vo.OrderPayCheckVo;
+import com.damai.vo.SoldSeatSimpleVo;
 import com.damai.vo.OrderTicketInfoVo;
 import com.damai.vo.SeatVo;
+import com.damai.vo.SeatStatusItemVo;
+import com.damai.vo.SeatStatusPushVo;
 import com.damai.vo.TicketUserInfoVo;
 import com.damai.vo.TicketUserVo;
 import com.damai.vo.TradeCheckVo;
@@ -97,98 +86,99 @@ import static com.damai.core.RepeatExecuteLimitConstants.PROGRAM_CACHE_REVERSE_M
 @Slf4j
 @Service
 public class OrderService extends ServiceImpl<OrderMapper, Order> {
-    
+
     @Autowired
     private UidGenerator uidGenerator;
-    
+
     @Autowired
     private OrderMapper orderMapper;
-    
+
     @Autowired
     private OrderTicketUserMapper orderTicketUserMapper;
-    
+
     @Autowired
     private OrderTicketUserService orderTicketUserService;
-    
+
     @Autowired
     private OrderProgramCacheResolutionOperate orderProgramCacheResolutionOperate;
-    
+
     @Autowired
     private RedisCache redisCache;
-    
+
     @Autowired
     private PayClient payClient;
-    
+
     @Autowired
     private UserClient userClient;
-    
+
     @Autowired
     private OrderProperties orderProperties;
-    
+
     @Lazy
     @Autowired
     private OrderService orderService;
-    
+
     @Autowired
     private DelayOperateProgramDataSend delayOperateProgramDataSend;
-    
+
     @Autowired
     private ServiceLockTool serviceLockTool;
-    
+
+    @Autowired
+    private OrderStatusPushService orderStatusPushService;
+
+    @Autowired
+    private SeatStatusPushService seatStatusPushService;
+
     @Transactional(rollbackFor = Exception.class)
     public String create(OrderCreateDto orderCreateDto) {
-        LambdaQueryWrapper<Order> orderLambdaQueryWrapper = 
-                Wrappers.lambdaQuery(Order.class).eq(Order::getOrderNumber, orderCreateDto.getOrderNumber());
+        LambdaQueryWrapper<Order> orderLambdaQueryWrapper = Wrappers.lambdaQuery(Order.class).eq(Order::getOrderNumber,
+                orderCreateDto.getOrderNumber());
         Order oldOrder = orderMapper.selectOne(orderLambdaQueryWrapper);
         if (Objects.nonNull(oldOrder)) {
             throw new DaMaiFrameException(BaseCode.ORDER_EXIST);
         }
-        LambdaQueryWrapper<Order> duplicatePendingWrapper =
-                Wrappers.lambdaQuery(Order.class)
-                        .eq(Order::getUserId, orderCreateDto.getUserId())
-                        .eq(Order::getProgramId, orderCreateDto.getProgramId())
-                        .eq(Order::getOrderStatus, OrderStatus.NO_PAY.getCode());
+        LambdaQueryWrapper<Order> duplicatePendingWrapper = Wrappers.lambdaQuery(Order.class)
+                .eq(Order::getUserId, orderCreateDto.getUserId()).eq(Order::getProgramId, orderCreateDto.getProgramId())
+                .eq(Order::getOrderStatus, OrderStatus.NO_PAY.getCode());
         Long duplicatePendingCount = orderMapper.selectCount(duplicatePendingWrapper);
         if (duplicatePendingCount != null && duplicatePendingCount > 0) {
             log.info("重复订单校验失败 userId:{} programId:{}", orderCreateDto.getUserId(), orderCreateDto.getProgramId());
             throw new DaMaiFrameException(BaseCode.PENDING_SAME_PROGRAM_ORDER_EXIST);
         }
         Order order = new Order();
-        BeanUtil.copyProperties(orderCreateDto,order);
+        BeanUtil.copyProperties(orderCreateDto, order);
         order.setDistributionMode("电子票");
         order.setTakeTicketMode("请使用购票人身份证直接入场");
         List<OrderTicketUser> orderTicketUserList = new ArrayList<>();
         for (OrderTicketUserCreateDto orderTicketUserCreateDto : orderCreateDto.getOrderTicketUserCreateDtoList()) {
             OrderTicketUser orderTicketUser = new OrderTicketUser();
-            BeanUtil.copyProperties(orderTicketUserCreateDto,orderTicketUser);
+            BeanUtil.copyProperties(orderTicketUserCreateDto, orderTicketUser);
             orderTicketUser.setId(uidGenerator.getUid());
             orderTicketUserList.add(orderTicketUser);
         }
         orderMapper.insert(order);
         orderTicketUserService.saveBatch(orderTicketUserList);
-        redisCache.incrBy(RedisKeyBuild.createRedisKey(
-                RedisKeyManage.ACCOUNT_ORDER_COUNT,
-                        orderCreateDto.getUserId(),
-                        orderCreateDto.getProgramId()),
-                orderCreateDto.getOrderTicketUserCreateDtoList().size());
+        redisCache.incrBy(RedisKeyBuild.createRedisKey(RedisKeyManage.ACCOUNT_ORDER_COUNT, orderCreateDto.getUserId(),
+                orderCreateDto.getProgramId()), orderCreateDto.getOrderTicketUserCreateDtoList().size());
         return String.valueOf(order.getOrderNumber());
     }
-    
+
     /**
      * 订单取消，以订单编号加锁
-     * */
-    @RepeatExecuteLimit(name = CANCEL_PROGRAM_ORDER,keys = {"#orderCancelDto.orderNumber"})
-    @ServiceLock(name = ORDER_CANCEL_LOCK,keys = {"#orderCancelDto.orderNumber"})
+     */
+    @RepeatExecuteLimit(name = CANCEL_PROGRAM_ORDER, keys = { "#orderCancelDto.orderNumber" })
+    @ServiceLock(name = ORDER_CANCEL_LOCK, keys = { "#orderCancelDto.orderNumber" })
     @Transactional(rollbackFor = Exception.class)
-    public boolean cancel(OrderCancelDto orderCancelDto){
-        updateOrderRelatedData(orderCancelDto.getOrderNumber(),OrderStatus.CANCEL);
+    public boolean cancel(OrderCancelDto orderCancelDto) {
+        updateOrderRelatedData(orderCancelDto.getOrderNumber(), OrderStatus.CANCEL);
         return true;
     }
-    
+
     public String pay(OrderPayDto orderPayDto) {
         Long orderNumber = orderPayDto.getOrderNumber();
-        LambdaQueryWrapper<Order> orderLambdaQueryWrapper =
-                Wrappers.lambdaQuery(Order.class).eq(Order::getOrderNumber, orderNumber);
+        LambdaQueryWrapper<Order> orderLambdaQueryWrapper = Wrappers.lambdaQuery(Order.class).eq(Order::getOrderNumber,
+                orderNumber);
         Order order = orderMapper.selectOne(orderLambdaQueryWrapper);
         if (Objects.isNull(order)) {
             throw new DaMaiFrameException(BaseCode.ORDER_NOT_EXIST);
@@ -214,11 +204,11 @@ public class OrderService extends ServiceImpl<OrderMapper, Order> {
                 .orElseThrow(() -> new DaMaiFrameException(BaseCode.RPC_RESULT_DATA_EMPTY));
 
         redisCache.set(RedisKeyBuild.createRedisKey(com.damai.core.RedisKeyManage.PAY_OUT_TRADE_NO, orderNumber),
-                payPageVo.getOutTradeNo(),15, TimeUnit.MINUTES);
+                payPageVo.getOutTradeNo(), 15, TimeUnit.MINUTES);
 
         return payPageVo.getBody();
     }
-    
+
     private PayDto getPayDto(OrderPayDto orderPayDto, Long orderNumber) {
         PayDto payDto = new PayDto();
         payDto.setOrderNumber(String.valueOf(orderNumber));
@@ -232,20 +222,20 @@ public class OrderService extends ServiceImpl<OrderMapper, Order> {
         payDto.setReturnUrl(orderProperties.getOrderPayReturnUrl());
         return payDto;
     }
-    
+
     /**
      * 支付后订单检查，以订单编号加锁，防止多次更新
-     * */
-    @ServiceLock(name = ORDER_PAY_CHECK,keys = {"#orderPayCheckDto.orderNumber"})
-    public OrderPayCheckVo payCheck(OrderPayCheckDto orderPayCheckDto){
+     */
+    @ServiceLock(name = ORDER_PAY_CHECK, keys = { "#orderPayCheckDto.orderNumber" })
+    public OrderPayCheckVo payCheck(OrderPayCheckDto orderPayCheckDto) {
         OrderPayCheckVo orderPayCheckVo = new OrderPayCheckVo();
-        LambdaQueryWrapper<Order> orderLambdaQueryWrapper =
-                Wrappers.lambdaQuery(Order.class).eq(Order::getOrderNumber, orderPayCheckDto.getOrderNumber());
+        LambdaQueryWrapper<Order> orderLambdaQueryWrapper = Wrappers.lambdaQuery(Order.class).eq(Order::getOrderNumber,
+                orderPayCheckDto.getOrderNumber());
         Order order = orderMapper.selectOne(orderLambdaQueryWrapper);
         if (Objects.isNull(order)) {
             throw new DaMaiFrameException(BaseCode.ORDER_NOT_EXIST);
         }
-        BeanUtil.copyProperties(order,orderPayCheckVo);
+        BeanUtil.copyProperties(order, orderPayCheckVo);
         if (Objects.equals(order.getOrderStatus(), OrderStatus.CANCEL.getCode())) {
             RefundDto refundDto = new RefundDto();
             refundDto.setOrderNumber(String.valueOf(order.getOrderNumber()));
@@ -257,19 +247,23 @@ public class OrderService extends ServiceImpl<OrderMapper, Order> {
                 Order updateOrder = new Order();
                 updateOrder.setEditTime(DateUtils.now());
                 updateOrder.setOrderStatus(OrderStatus.REFUND.getCode());
-                orderMapper.update(updateOrder,Wrappers.lambdaUpdate(Order.class).eq(Order::getOrderNumber, order.getOrderNumber()));
-            }else {
-                log.error("pay服务退款失败 dto : {} response : {}",JSON.toJSONString(refundDto),JSON.toJSONString(response));
+                orderMapper.update(updateOrder,
+                        Wrappers.lambdaUpdate(Order.class).eq(Order::getOrderNumber, order.getOrderNumber()));
+            } else {
+                log.error("pay服务退款失败 dto : {} response : {}", JSON.toJSONString(refundDto),
+                        JSON.toJSONString(response));
             }
             orderPayCheckVo.setOrderStatus(OrderStatus.REFUND.getCode());
             orderPayCheckVo.setCancelOrderTime(DateUtils.now());
             return orderPayCheckVo;
         }
-        
+
         TradeCheckDto tradeCheckDto = new TradeCheckDto();
-        String cachedOutTradeNo = redisCache.get(RedisKeyBuild.createRedisKey(com.damai.core.RedisKeyManage.PAY_OUT_TRADE_NO,
-                orderPayCheckDto.getOrderNumber()), String.class);
-        String outTradeNoForCheck = StringUtil.isEmpty(cachedOutTradeNo) ? String.valueOf(orderPayCheckDto.getOrderNumber()) : cachedOutTradeNo;
+        String cachedOutTradeNo = redisCache.get(RedisKeyBuild.createRedisKey(
+                com.damai.core.RedisKeyManage.PAY_OUT_TRADE_NO, orderPayCheckDto.getOrderNumber()), String.class);
+        String outTradeNoForCheck = StringUtil.isEmpty(cachedOutTradeNo)
+                ? String.valueOf(orderPayCheckDto.getOrderNumber())
+                : cachedOutTradeNo;
         tradeCheckDto.setOutTradeNo(outTradeNoForCheck);
         tradeCheckDto.setChannel(Optional.ofNullable(PayChannel.getRc(orderPayCheckDto.getPayChannelType()))
                 .map(PayChannel::getValue).orElseThrow(() -> new DaMaiFrameException(BaseCode.PAY_CHANNEL_NOT_EXIST)));
@@ -287,40 +281,41 @@ public class OrderService extends ServiceImpl<OrderMapper, Order> {
                 try {
                     if (Objects.equals(payBillStatus, PayBillStatus.PAY.getCode())) {
                         orderPayCheckVo.setPayOrderTime(DateUtils.now());
-                        orderService.updateOrderRelatedData(order.getOrderNumber(),OrderStatus.PAY);
-                    }else if (Objects.equals(payBillStatus, PayBillStatus.CANCEL.getCode())) {
+                        orderService.updateOrderRelatedData(order.getOrderNumber(), OrderStatus.PAY);
+                    } else if (Objects.equals(payBillStatus, PayBillStatus.CANCEL.getCode())) {
                         orderPayCheckVo.setCancelOrderTime(DateUtils.now());
-                        orderService.updateOrderRelatedData(order.getOrderNumber(),OrderStatus.CANCEL);
+                        orderService.updateOrderRelatedData(order.getOrderNumber(), OrderStatus.CANCEL);
                     }
-                }catch (Exception e) {
-                    log.warn("updateOrderRelatedData warn message",e);
+                } catch (Exception e) {
+                    log.warn("updateOrderRelatedData warn message", e);
                 }
             }
-        }else {
+        } else {
             throw new DaMaiFrameException(BaseCode.PAY_TRADE_CHECK_ERROR);
         }
         return orderPayCheckVo;
     }
-    
-    
-    public String alipayNotify(HttpServletRequest request){
-        
+
+    public String alipayNotify(HttpServletRequest request) {
+
         Map<String, String> params = new HashMap<>(256);
         if (request instanceof final CustomizeRequestWrapper customizeRequestWrapper) {
             String requestBody = customizeRequestWrapper.getRequestBody();
             params = StringUtil.convertQueryStringToMap(requestBody);
         }
-        log.info("收到支付宝回调通知 params : {}",JSON.toJSONString(params));
+        log.info("收到支付宝回调通知 params : {}", JSON.toJSONString(params));
         String aliOutTradeNo = params.get("out_trade_no");
         if (StringUtil.isEmpty(aliOutTradeNo)) {
             return "failure";
         }
-        String originOrderNo = aliOutTradeNo.contains("_") ? aliOutTradeNo.substring(0, aliOutTradeNo.indexOf("_")) : aliOutTradeNo;
+        String originOrderNo = aliOutTradeNo.contains("_") ? aliOutTradeNo.substring(0, aliOutTradeNo.indexOf("_"))
+                : aliOutTradeNo;
         RLock lock = serviceLockTool.getLock(LockType.Reentrant, ORDER_PAY_NOTIFY_CHECK,
-                new String[]{originOrderNo});
+                new String[] { originOrderNo });
         lock.lock();
         try {
-            Order order = orderMapper.selectOne(Wrappers.lambdaQuery(Order.class).eq(Order::getOrderNumber, Long.parseLong(originOrderNo)));
+            Order order = orderMapper.selectOne(
+                    Wrappers.lambdaQuery(Order.class).eq(Order::getOrderNumber, Long.parseLong(originOrderNo)));
             if (Objects.isNull(order)) {
                 throw new DaMaiFrameException(BaseCode.ORDER_NOT_EXIST);
             }
@@ -335,14 +330,15 @@ public class OrderService extends ServiceImpl<OrderMapper, Order> {
                     Order updateOrder = new Order();
                     updateOrder.setEditTime(DateUtils.now());
                     updateOrder.setOrderStatus(OrderStatus.REFUND.getCode());
-                    orderMapper.update(updateOrder,Wrappers.lambdaUpdate(Order.class).eq(Order::getOrderNumber, originOrderNo));
-                }else {
-                    log.error("pay服务退款失败 dto : {} response : {}",JSON.toJSONString(refundDto),JSON.toJSONString(response));
+                    orderMapper.update(updateOrder,
+                            Wrappers.lambdaUpdate(Order.class).eq(Order::getOrderNumber, originOrderNo));
+                } else {
+                    log.error("pay服务退款失败 dto : {} response : {}", JSON.toJSONString(refundDto),
+                            JSON.toJSONString(response));
                 }
                 return ALIPAY_NOTIFY_SUCCESS_RESULT;
             }
-          
-            
+
             NotifyDto notifyDto = new NotifyDto();
             notifyDto.setChannel(PayChannel.ALIPAY.getValue());
             notifyDto.setParams(params);
@@ -352,36 +348,36 @@ public class OrderService extends ServiceImpl<OrderMapper, Order> {
             }
             if (ALIPAY_NOTIFY_SUCCESS_RESULT.equals(notifyResponse.getData().getPayResult())) {
                 try {
-                    orderService.updateOrderRelatedData(Long.parseLong(notifyResponse.getData().getOutTradeNo())
-                            ,OrderStatus.PAY);
-                }catch (Exception e) {
-                    log.warn("updateOrderRelatedData warn message",e);
+                    orderService.updateOrderRelatedData(Long.parseLong(notifyResponse.getData().getOutTradeNo()),
+                            OrderStatus.PAY);
+                } catch (Exception e) {
+                    log.warn("updateOrderRelatedData warn message", e);
                 }
             }
             return notifyResponse.getData().getPayResult();
-        }finally {
+        } finally {
             lock.unlock();
         }
-        
+
     }
-    
+
     /**
      * 更新订单和购票人订单状态以及操作缓存数据
-     * */
+     */
     @Transactional(rollbackFor = Exception.class)
-    public void updateOrderRelatedData(Long orderNumber,OrderStatus orderStatus){
-        if (!(Objects.equals(orderStatus.getCode(), OrderStatus.CANCEL.getCode()) ||
-                Objects.equals(orderStatus.getCode(), OrderStatus.PAY.getCode()))) {
+    public void updateOrderRelatedData(Long orderNumber, OrderStatus orderStatus) {
+        if (!(Objects.equals(orderStatus.getCode(), OrderStatus.CANCEL.getCode())
+                || Objects.equals(orderStatus.getCode(), OrderStatus.PAY.getCode()))) {
             throw new DaMaiFrameException(BaseCode.OPERATE_ORDER_STATUS_NOT_PERMIT);
         }
-        LambdaQueryWrapper<Order> orderLambdaQueryWrapper =
-                Wrappers.lambdaQuery(Order.class).eq(Order::getOrderNumber, orderNumber);
+        LambdaQueryWrapper<Order> orderLambdaQueryWrapper = Wrappers.lambdaQuery(Order.class).eq(Order::getOrderNumber,
+                orderNumber);
         Order order = orderMapper.selectOne(orderLambdaQueryWrapper);
         checkOrderStatus(order);
         Order updateOrder = new Order();
         updateOrder.setId(order.getId());
         updateOrder.setOrderStatus(orderStatus.getCode());
-        
+
         OrderTicketUser updateOrderTicketUser = new OrderTicketUser();
         updateOrderTicketUser.setOrderStatus(orderStatus.getCode());
         if (Objects.equals(orderStatus.getCode(), OrderStatus.PAY.getCode())) {
@@ -391,39 +387,51 @@ public class OrderService extends ServiceImpl<OrderMapper, Order> {
             updateOrder.setCancelOrderTime(DateUtils.now());
             updateOrderTicketUser.setCancelOrderTime(DateUtils.now());
         }
-        LambdaUpdateWrapper<Order> orderLambdaUpdateWrapper =
-                Wrappers.lambdaUpdate(Order.class).eq(Order::getOrderNumber, order.getOrderNumber());
-        int updateOrderResult = orderMapper.update(updateOrder,orderLambdaUpdateWrapper);
-        
-        LambdaUpdateWrapper<OrderTicketUser> orderTicketUserLambdaUpdateWrapper =
-                Wrappers.lambdaUpdate(OrderTicketUser.class).eq(OrderTicketUser::getOrderNumber, order.getOrderNumber());
-        int updateTicketUserOrderResult =
-                orderTicketUserMapper.update(updateOrderTicketUser,orderTicketUserLambdaUpdateWrapper);
+        LambdaUpdateWrapper<Order> orderLambdaUpdateWrapper = Wrappers.lambdaUpdate(Order.class)
+                .eq(Order::getOrderNumber, order.getOrderNumber());
+        int updateOrderResult = orderMapper.update(updateOrder, orderLambdaUpdateWrapper);
+
+        LambdaUpdateWrapper<OrderTicketUser> orderTicketUserLambdaUpdateWrapper = Wrappers
+                .lambdaUpdate(OrderTicketUser.class).eq(OrderTicketUser::getOrderNumber, order.getOrderNumber());
+        int updateTicketUserOrderResult = orderTicketUserMapper.update(updateOrderTicketUser,
+                orderTicketUserLambdaUpdateWrapper);
         if (updateOrderResult <= 0 || updateTicketUserOrderResult <= 0) {
             throw new DaMaiFrameException(BaseCode.ORDER_CANAL_ERROR);
         }
-        LambdaQueryWrapper<OrderTicketUser> orderTicketUserLambdaQueryWrapper =
-                Wrappers.lambdaQuery(OrderTicketUser.class).eq(OrderTicketUser::getOrderNumber, order.getOrderNumber());
+        LambdaQueryWrapper<OrderTicketUser> orderTicketUserLambdaQueryWrapper = Wrappers
+                .lambdaQuery(OrderTicketUser.class).eq(OrderTicketUser::getOrderNumber, order.getOrderNumber());
         List<OrderTicketUser> orderTicketUserList = orderTicketUserMapper.selectList(orderTicketUserLambdaQueryWrapper);
         if (CollectionUtil.isEmpty(orderTicketUserList)) {
             throw new DaMaiFrameException(BaseCode.TICKET_USER_ORDER_NOT_EXIST);
         }
         if (Objects.equals(orderStatus.getCode(), OrderStatus.CANCEL.getCode())) {
-            redisCache.incrBy(RedisKeyBuild.createRedisKey(
-                    RedisKeyManage.ACCOUNT_ORDER_COUNT,order.getUserId(),order.getProgramId()),-updateTicketUserOrderResult);
+            redisCache.incrBy(RedisKeyBuild.createRedisKey(RedisKeyManage.ACCOUNT_ORDER_COUNT, order.getUserId(),
+                    order.getProgramId()), -updateTicketUserOrderResult);
         }
         Long programId = order.getProgramId();
-        Map<Long, List<OrderTicketUser>> orderTicketUserSeatList = 
-                orderTicketUserList.stream().collect(Collectors.groupingBy(OrderTicketUser::getTicketCategoryId));
-        Map<Long,List<Long>> seatMap = new HashMap<>(orderTicketUserSeatList.size());
-        orderTicketUserSeatList.forEach((k,v) -> {
-            seatMap.put(k,v.stream().map(OrderTicketUser::getSeatId).collect(Collectors.toList()));
+        Map<Long, List<OrderTicketUser>> orderTicketUserSeatList = orderTicketUserList.stream()
+                .collect(Collectors.groupingBy(OrderTicketUser::getTicketCategoryId));
+        Map<Long, List<Long>> seatMap = new HashMap<>(orderTicketUserSeatList.size());
+        orderTicketUserSeatList.forEach((k, v) -> {
+            seatMap.put(k, v.stream().map(OrderTicketUser::getSeatId).collect(Collectors.toList()));
         });
-        
-        updateProgramRelatedDataResolution(programId,seatMap,orderStatus);
+
+        updateProgramRelatedDataResolution(programId, seatMap, orderStatus);
+        try {
+            com.damai.vo.OrderStatusPushVo vo = new com.damai.vo.OrderStatusPushVo();
+            vo.setOrderNumber(order.getOrderNumber());
+            vo.setOrderStatus(orderStatus.getCode());
+            if (Objects.equals(orderStatus.getCode(), com.damai.enums.OrderStatus.PAY.getCode())) {
+                vo.setPayOrderTime(com.damai.util.DateUtils.now());
+            } else if (Objects.equals(orderStatus.getCode(), com.damai.enums.OrderStatus.CANCEL.getCode())) {
+                vo.setCancelOrderTime(com.damai.util.DateUtils.now());
+            }
+            orderStatusPushService.send(order.getOrderNumber(), vo);
+        } catch (Exception ignored) {
+        }
     }
-    
-    public void checkOrderStatus(Order order){
+
+    public void checkOrderStatus(Order order) {
         if (Objects.isNull(order)) {
             throw new DaMaiFrameException(BaseCode.ORDER_NOT_EXIST);
         }
@@ -437,12 +445,14 @@ public class OrderService extends ServiceImpl<OrderMapper, Order> {
             throw new DaMaiFrameException(BaseCode.ORDER_REFUND);
         }
     }
-    
-    public void updateProgramRelatedDataResolution(Long programId,Map<Long,List<Long>> seatMap,OrderStatus orderStatus){
+
+    public void updateProgramRelatedDataResolution(Long programId, Map<Long, List<Long>> seatMap,
+            OrderStatus orderStatus) {
         Map<Long, List<SeatVo>> seatVoMap = new HashMap<>(seatMap.size());
-        seatMap.forEach((k,v) -> seatVoMap.put(k,redisCache.multiGetForHash(
-                RedisKeyBuild.createRedisKey(RedisKeyManage.PROGRAM_SEAT_LOCK_RESOLUTION_HASH, programId, k),
-                v.stream().map(String::valueOf).collect(Collectors.toList()), SeatVo.class)));
+        seatMap.forEach((k, v) -> seatVoMap.put(k,
+                redisCache.multiGetForHash(
+                        RedisKeyBuild.createRedisKey(RedisKeyManage.PROGRAM_SEAT_LOCK_RESOLUTION_HASH, programId, k),
+                        v.stream().map(String::valueOf).collect(Collectors.toList()), SeatVo.class)));
         if (CollectionUtil.isEmpty(seatVoMap)) {
             throw new DaMaiFrameException(BaseCode.LOCK_SEAT_LIST_EMPTY);
         }
@@ -451,41 +461,43 @@ public class OrderService extends ServiceImpl<OrderMapper, Order> {
         List<TicketCategoryCountDto> ticketCategoryCountDtoList = new ArrayList<>(seatVoMap.size());
         JSONArray unLockSeatIdjsonArray = new JSONArray();
         List<Long> unLockSeatIdList = new ArrayList<>();
-        seatVoMap.forEach((k,v) -> {
+        seatVoMap.forEach((k, v) -> {
             JSONObject unLockSeatIdjsonObject = new JSONObject();
-            unLockSeatIdjsonObject.put("programSeatLockHashKey", RedisKeyBuild.createRedisKey(
-                    RedisKeyManage.PROGRAM_SEAT_LOCK_RESOLUTION_HASH, programId, k).getRelKey());
-            unLockSeatIdjsonObject.put("unLockSeatIdList",v.stream()
-                    .map(SeatVo::getId).map(String::valueOf).collect(Collectors.toList()));
+            unLockSeatIdjsonObject.put("programSeatLockHashKey", RedisKeyBuild
+                    .createRedisKey(RedisKeyManage.PROGRAM_SEAT_LOCK_RESOLUTION_HASH, programId, k).getRelKey());
+            unLockSeatIdjsonObject.put("unLockSeatIdList",
+                    v.stream().map(SeatVo::getId).map(String::valueOf).collect(Collectors.toList()));
             unLockSeatIdjsonArray.add(unLockSeatIdjsonObject);
             JSONObject seatDatajsonObject = new JSONObject();
             String seatHashKeyAdd = "";
             if (Objects.equals(orderStatus.getCode(), OrderStatus.CANCEL.getCode())) {
-                seatHashKeyAdd = RedisKeyBuild.createRedisKey(
-                        RedisKeyManage.PROGRAM_SEAT_NO_SOLD_RESOLUTION_HASH, programId, k).getRelKey();
+                seatHashKeyAdd = RedisKeyBuild
+                        .createRedisKey(RedisKeyManage.PROGRAM_SEAT_NO_SOLD_RESOLUTION_HASH, programId, k).getRelKey();
                 for (SeatVo seatVo : v) {
                     seatVo.setSellStatus(SellStatus.NO_SOLD.getCode());
                 }
-            }else if (Objects.equals(orderStatus.getCode(), OrderStatus.PAY.getCode())) {
-                seatHashKeyAdd = RedisKeyBuild.createRedisKey(
-                        RedisKeyManage.PROGRAM_SEAT_SOLD_RESOLUTION_HASH, programId, k).getRelKey();
+            } else if (Objects.equals(orderStatus.getCode(), OrderStatus.PAY.getCode())) {
+                seatHashKeyAdd = RedisKeyBuild
+                        .createRedisKey(RedisKeyManage.PROGRAM_SEAT_SOLD_RESOLUTION_HASH, programId, k).getRelKey();
                 for (SeatVo seatVo : v) {
                     seatVo.setSellStatus(SellStatus.SOLD.getCode());
                 }
             }
-            seatDatajsonObject.put("seatHashKeyAdd",seatHashKeyAdd);
+            seatDatajsonObject.put("seatHashKeyAdd", seatHashKeyAdd);
             List<String> seatDataList = new ArrayList<>();
             for (SeatVo seatVo : v) {
                 seatDataList.add(String.valueOf(seatVo.getId()));
                 seatDataList.add(JSON.toJSONString(seatVo));
             }
-            seatDatajsonObject.put("seatDataList",seatDataList);
+            seatDatajsonObject.put("seatDataList", seatDataList);
             addSeatDatajsonArray.add(seatDatajsonObject);
             JSONObject jsonObject = new JSONObject();
-            jsonObject.put("programTicketRemainNumberHashKey",RedisKeyBuild.createRedisKey(
-                    RedisKeyManage.PROGRAM_TICKET_REMAIN_NUMBER_HASH_RESOLUTION, programId, k).getRelKey());
-            jsonObject.put("ticketCategoryId",String.valueOf(k));
-            jsonObject.put("count",v.size());
+            jsonObject.put("programTicketRemainNumberHashKey",
+                    RedisKeyBuild
+                            .createRedisKey(RedisKeyManage.PROGRAM_TICKET_REMAIN_NUMBER_HASH_RESOLUTION, programId, k)
+                            .getRelKey());
+            jsonObject.put("ticketCategoryId", String.valueOf(k));
+            jsonObject.put("count", v.size());
             jsonArray.add(jsonObject);
             TicketCategoryCountDto ticketCategoryCountDto = new TicketCategoryCountDto();
             ticketCategoryCountDto.setTicketCategoryId(k);
@@ -499,7 +511,7 @@ public class OrderService extends ServiceImpl<OrderMapper, Order> {
         data[0] = JSON.toJSONString(unLockSeatIdjsonArray);
         data[1] = JSON.toJSONString(addSeatDatajsonArray);
         data[2] = JSON.toJSONString(jsonArray);
-        orderProgramCacheResolutionOperate.programCacheReverseOperate(keys,data);
+        orderProgramCacheResolutionOperate.programCacheReverseOperate(keys, data);
         if (Objects.equals(orderStatus.getCode(), OrderStatus.PAY.getCode())) {
             ProgramOperateDataDto programOperateDataDto = new ProgramOperateDataDto();
             programOperateDataDto.setProgramId(programId);
@@ -508,76 +520,152 @@ public class OrderService extends ServiceImpl<OrderMapper, Order> {
             programOperateDataDto.setSellStatus(SellStatus.SOLD.getCode());
             delayOperateProgramDataSend.sendMessage(JSON.toJSONString(programOperateDataDto));
         }
+        try {
+            SeatStatusPushVo pushVo = new SeatStatusPushVo();
+            pushVo.setProgramId(programId);
+            List<SeatStatusItemVo> items = new ArrayList<>();
+            seatVoMap.forEach((k, v) -> {
+                for (SeatVo seatVo : v) {
+                    SeatStatusItemVo item = new SeatStatusItemVo();
+                    item.setTicketCategoryId(k);
+                    item.setZoneName(seatVo.getZoneName());
+                    item.setRowCode(seatVo.getRowCode());
+                    item.setColCode(seatVo.getColCode());
+                    if (Objects.equals(orderStatus.getCode(), OrderStatus.PAY.getCode())) {
+                        item.setSellStatus(SellStatus.SOLD.getCode());
+                    } else if (Objects.equals(orderStatus.getCode(), OrderStatus.CANCEL.getCode())) {
+                        item.setSellStatus(SellStatus.NO_SOLD.getCode());
+                    } else {
+                        item.setSellStatus(seatVo.getSellStatus());
+                    }
+                    items.add(item);
+                }
+            });
+            pushVo.setItems(items);
+            seatStatusPushService.send(programId, pushVo);
+        } catch (Exception ignored) {
+        }
     }
-    
+
+    public org.springframework.web.servlet.mvc.method.annotation.SseEmitter statusSubscribe(Long orderNumber) {
+        return orderStatusPushService.subscribe(orderNumber);
+    }
+
+    public org.springframework.web.servlet.mvc.method.annotation.SseEmitter seatStatusSubscribe(Long programId) {
+        return seatStatusPushService.subscribe(programId);
+    }
+
+    public List<SoldSeatSimpleVo> selectSoldSeatList(OrderSoldSeatListDto dto) {
+        List<SoldSeatSimpleVo> list = new ArrayList<>();
+        if (Objects.isNull(dto) || Objects.isNull(dto.getProgramId())) {
+            return list;
+        }
+        LambdaQueryWrapper<OrderTicketUser> wrapper = Wrappers.lambdaQuery(OrderTicketUser.class)
+                .eq(OrderTicketUser::getProgramId, dto.getProgramId())
+                .eq(OrderTicketUser::getOrderStatus, OrderStatus.PAY.getCode());
+        List<OrderTicketUser> rows = orderTicketUserMapper.selectList(wrapper);
+        for (OrderTicketUser o : rows) {
+            Integer rowCode = null;
+            Integer colCode = null;
+            String zoneName = null;
+            String si = o.getSeatInfo();
+            if (si != null) {
+                try {
+                    // 新格式: "区域名称 排号排列号列" 例如: "A区 1排2列"
+                    // 旧格式: "排号排列号列" 例如: "1排2列"
+                    String parseStr = si;
+                    int spaceIdx = si.indexOf(" ");
+                    if (spaceIdx > 0) {
+                        zoneName = si.substring(0, spaceIdx);
+                        parseStr = si.substring(spaceIdx + 1);
+                    }
+                    int i = parseStr.indexOf("排");
+                    int j = parseStr.indexOf("列");
+                    if (i > 0 && j > i) {
+                        rowCode = Integer.parseInt(parseStr.substring(0, i));
+                        colCode = Integer.parseInt(parseStr.substring(i + 1, j));
+                    }
+                } catch (Exception ignored) {
+                }
+            }
+            if (rowCode != null && colCode != null) {
+                SoldSeatSimpleVo vo = new SoldSeatSimpleVo();
+                vo.setTicketCategoryId(o.getTicketCategoryId());
+                vo.setZoneName(zoneName);
+                vo.setRowCode(rowCode);
+                vo.setColCode(colCode);
+                list.add(vo);
+            }
+        }
+        return list;
+    }
+
     public List<OrderListVo> selectList(OrderListDto orderListDto) {
         List<OrderListVo> orderListVos = new ArrayList<>();
-        LambdaQueryWrapper<Order> orderLambdaQueryWrapper = 
-                Wrappers.lambdaQuery(Order.class)
-                        .eq(Order::getUserId, orderListDto.getUserId())
-                        .orderByDesc(Order::getCreateOrderTime);
+        LambdaQueryWrapper<Order> orderLambdaQueryWrapper = Wrappers.lambdaQuery(Order.class)
+                .eq(Order::getUserId, orderListDto.getUserId()).orderByDesc(Order::getCreateOrderTime);
         List<Order> orderList = orderMapper.selectList(orderLambdaQueryWrapper);
         if (CollectionUtil.isEmpty(orderList)) {
             return orderListVos;
         }
         orderListVos = BeanUtil.copyToList(orderList, OrderListVo.class);
-        List<OrderTicketUserAggregate> orderTicketUserAggregateList = 
-                orderTicketUserMapper.selectOrderTicketUserAggregate(orderList.stream().map(Order::getOrderNumber).
-                        collect(Collectors.toList()));
+        List<OrderTicketUserAggregate> orderTicketUserAggregateList = orderTicketUserMapper
+                .selectOrderTicketUserAggregate(
+                        orderList.stream().map(Order::getOrderNumber).collect(Collectors.toList()));
         Map<Long, Integer> orderTicketUserAggregateMap = orderTicketUserAggregateList.stream()
-                .collect(Collectors.toMap(OrderTicketUserAggregate::getOrderNumber, 
+                .collect(Collectors.toMap(OrderTicketUserAggregate::getOrderNumber,
                         OrderTicketUserAggregate::getOrderTicketUserCount, (v1, v2) -> v2));
         for (OrderListVo orderListVo : orderListVos) {
             orderListVo.setTicketCount(orderTicketUserAggregateMap.get(orderListVo.getOrderNumber()));
         }
         return orderListVos;
     }
-    
+
     public OrderGetVo get(OrderGetDto orderGetDto) {
-        LambdaQueryWrapper<Order> orderLambdaQueryWrapper =
-                Wrappers.lambdaQuery(Order.class).eq(Order::getOrderNumber, orderGetDto.getOrderNumber());
+        LambdaQueryWrapper<Order> orderLambdaQueryWrapper = Wrappers.lambdaQuery(Order.class).eq(Order::getOrderNumber,
+                orderGetDto.getOrderNumber());
         Order order = orderMapper.selectOne(orderLambdaQueryWrapper);
         if (Objects.isNull(order)) {
             throw new DaMaiFrameException(BaseCode.ORDER_NOT_EXIST);
         }
-        LambdaQueryWrapper<OrderTicketUser> orderTicketUserLambdaQueryWrapper = 
-                Wrappers.lambdaQuery(OrderTicketUser.class).eq(OrderTicketUser::getOrderNumber, order.getOrderNumber());
+        LambdaQueryWrapper<OrderTicketUser> orderTicketUserLambdaQueryWrapper = Wrappers
+                .lambdaQuery(OrderTicketUser.class).eq(OrderTicketUser::getOrderNumber, order.getOrderNumber());
         List<OrderTicketUser> orderTicketUserList = orderTicketUserMapper.selectList(orderTicketUserLambdaQueryWrapper);
         if (CollectionUtil.isEmpty(orderTicketUserList)) {
-            throw new DaMaiFrameException(BaseCode.TICKET_USER_ORDER_NOT_EXIST);   
+            throw new DaMaiFrameException(BaseCode.TICKET_USER_ORDER_NOT_EXIST);
         }
-        
+
         OrderGetVo orderGetVo = new OrderGetVo();
-        BeanUtil.copyProperties(order,orderGetVo);
-        
+        BeanUtil.copyProperties(order, orderGetVo);
+
         List<OrderTicketInfoVo> orderTicketInfoVoList = new ArrayList<>();
-        Map<BigDecimal, List<OrderTicketUser>> orderTicketUserMap = 
-                orderTicketUserList.stream().collect(Collectors.groupingBy(OrderTicketUser::getOrderPrice));
-        orderTicketUserMap.forEach((k,v) -> {
+        Map<BigDecimal, List<OrderTicketUser>> orderTicketUserMap = orderTicketUserList.stream()
+                .collect(Collectors.groupingBy(OrderTicketUser::getOrderPrice));
+        orderTicketUserMap.forEach((k, v) -> {
             OrderTicketInfoVo orderTicketInfoVo = new OrderTicketInfoVo();
             String seatInfo = v.stream().map(OrderTicketUser::getSeatInfo).collect(Collectors.joining(","));
             orderTicketInfoVo.setSeatInfo(seatInfo);
             orderTicketInfoVo.setPrice(v.get(0).getOrderPrice());
             orderTicketInfoVo.setQuantity(v.size());
-            orderTicketInfoVo.setRelPrice(v.stream().map(OrderTicketUser::getOrderPrice)
-                    .reduce(BigDecimal.ZERO,BigDecimal::add));
+            orderTicketInfoVo.setRelPrice(
+                    v.stream().map(OrderTicketUser::getOrderPrice).reduce(BigDecimal.ZERO, BigDecimal::add));
             orderTicketInfoVoList.add(orderTicketInfoVo);
         });
-        
+
         orderGetVo.setOrderTicketInfoVoList(orderTicketInfoVoList);
-        
+
         UserGetAndTicketUserListDto userGetAndTicketUserListDto = new UserGetAndTicketUserListDto();
         userGetAndTicketUserListDto.setUserId(order.getUserId());
-        ApiResponse<UserGetAndTicketUserListVo> userGetAndTicketUserApiResponse = 
-                userClient.getUserAndTicketUserList(userGetAndTicketUserListDto);
-        
+        ApiResponse<UserGetAndTicketUserListVo> userGetAndTicketUserApiResponse = userClient
+                .getUserAndTicketUserList(userGetAndTicketUserListDto);
+
         if (!Objects.equals(userGetAndTicketUserApiResponse.getCode(), BaseCode.SUCCESS.getCode())) {
             throw new DaMaiFrameException(userGetAndTicketUserApiResponse);
-            
+
         }
-        UserGetAndTicketUserListVo userAndTicketUserListVo =
-                Optional.ofNullable(userGetAndTicketUserApiResponse.getData())
-                        .orElseThrow(() -> new DaMaiFrameException(BaseCode.RPC_RESULT_DATA_EMPTY));
+        UserGetAndTicketUserListVo userAndTicketUserListVo = Optional
+                .ofNullable(userGetAndTicketUserApiResponse.getData())
+                .orElseThrow(() -> new DaMaiFrameException(BaseCode.RPC_RESULT_DATA_EMPTY));
         if (Objects.isNull(userAndTicketUserListVo.getUserVo())) {
             throw new DaMaiFrameException(BaseCode.USER_EMPTY);
         }
@@ -585,62 +673,64 @@ public class OrderService extends ServiceImpl<OrderMapper, Order> {
             throw new DaMaiFrameException(BaseCode.TICKET_USER_EMPTY);
         }
         List<TicketUserVo> filterTicketUserVoList = new ArrayList<>();
-        Map<Long, TicketUserVo> ticketUserVoMap = userAndTicketUserListVo.getTicketUserVoList()
-                .stream().collect(Collectors.toMap(TicketUserVo::getId, ticketUserVo -> ticketUserVo, (v1, v2) -> v2));
+        Map<Long, TicketUserVo> ticketUserVoMap = userAndTicketUserListVo.getTicketUserVoList().stream()
+                .collect(Collectors.toMap(TicketUserVo::getId, ticketUserVo -> ticketUserVo, (v1, v2) -> v2));
         for (OrderTicketUser orderTicketUser : orderTicketUserList) {
             filterTicketUserVoList.add(ticketUserVoMap.get(orderTicketUser.getTicketUserId()));
         }
         UserInfoVo userInfoVo = new UserInfoVo();
-        BeanUtil.copyProperties(userAndTicketUserListVo.getUserVo(),userInfoVo);
+        BeanUtil.copyProperties(userAndTicketUserListVo.getUserVo(), userInfoVo);
         UserAndTicketUserInfoVo userAndTicketUserInfoVo = new UserAndTicketUserInfoVo();
         userAndTicketUserInfoVo.setUserInfoVo(userInfoVo);
-        userAndTicketUserInfoVo.setTicketUserInfoVoList(BeanUtil.copyToList(filterTicketUserVoList, TicketUserInfoVo.class));
+        userAndTicketUserInfoVo
+                .setTicketUserInfoVoList(BeanUtil.copyToList(filterTicketUserVoList, TicketUserInfoVo.class));
         orderGetVo.setUserAndTicketUserInfoVo(userAndTicketUserInfoVo);
-        
+
         return orderGetVo;
     }
-    
+
     public AccountOrderCountVo accountOrderCount(AccountOrderCountDto accountOrderCountDto) {
         AccountOrderCountVo accountOrderCountVo = new AccountOrderCountVo();
-        accountOrderCountVo.setCount(orderMapper.accountOrderCount(accountOrderCountDto.getUserId(),
-                accountOrderCountDto.getProgramId()));
+        accountOrderCountVo.setCount(
+                orderMapper.accountOrderCount(accountOrderCountDto.getUserId(), accountOrderCountDto.getProgramId()));
         return accountOrderCountVo;
     }
-    
+
     public AccountOrderCountVo accountPendingOrderCount(AccountOrderCountDto accountOrderCountDto) {
         AccountOrderCountVo accountOrderCountVo = new AccountOrderCountVo();
-        Long count = orderMapper.selectCount(Wrappers.lambdaQuery(Order.class)
-                .eq(Order::getUserId, accountOrderCountDto.getUserId())
-                .eq(Order::getProgramId, accountOrderCountDto.getProgramId())
-                .eq(Order::getOrderStatus, OrderStatus.NO_PAY.getCode()));
+        Long count = orderMapper
+                .selectCount(Wrappers.lambdaQuery(Order.class).eq(Order::getUserId, accountOrderCountDto.getUserId())
+                        .eq(Order::getProgramId, accountOrderCountDto.getProgramId())
+                        .eq(Order::getOrderStatus, OrderStatus.NO_PAY.getCode()));
         accountOrderCountVo.setCount(count == null ? 0 : count.intValue());
         return accountOrderCountVo;
     }
-    
-    
-    @RepeatExecuteLimit(name = CREATE_PROGRAM_ORDER_MQ,keys = {"#orderCreateDto.orderNumber"})
+
+    @RepeatExecuteLimit(name = CREATE_PROGRAM_ORDER_MQ, keys = { "#orderCreateDto.orderNumber" })
     @Transactional(rollbackFor = Exception.class)
-    public String createMq(OrderCreateDto orderCreateDto){
+    public String createMq(OrderCreateDto orderCreateDto) {
         String orderNumber = create(orderCreateDto);
-        redisCache.set(RedisKeyBuild.createRedisKey(RedisKeyManage.ORDER_MQ,orderNumber),orderNumber,1, TimeUnit.MINUTES);
+        redisCache.set(RedisKeyBuild.createRedisKey(RedisKeyManage.ORDER_MQ, orderNumber), orderNumber, 1,
+                TimeUnit.MINUTES);
         return orderNumber;
     }
-    
-    @RepeatExecuteLimit(name = PROGRAM_CACHE_REVERSE_MQ,keys = {"#programId"})
-    public void updateProgramRelatedDataMq(Long programId,Map<Long,List<Long>> seatMap,OrderStatus orderStatus){
-        updateProgramRelatedDataResolution(programId,seatMap,orderStatus);
+
+    @RepeatExecuteLimit(name = PROGRAM_CACHE_REVERSE_MQ, keys = { "#programId" })
+    public void updateProgramRelatedDataMq(Long programId, Map<Long, List<Long>> seatMap, OrderStatus orderStatus) {
+        updateProgramRelatedDataResolution(programId, seatMap, orderStatus);
     }
-    
+
     public String getCache(OrderGetDto orderGetDto) {
-        return redisCache.get(RedisKeyBuild.createRedisKey(RedisKeyManage.ORDER_MQ,orderGetDto.getOrderNumber()),String.class);
+        return redisCache.get(RedisKeyBuild.createRedisKey(RedisKeyManage.ORDER_MQ, orderGetDto.getOrderNumber()),
+                String.class);
     }
-    
-    @RepeatExecuteLimit(name = CANCEL_PROGRAM_ORDER,keys = {"#orderCancelDto.orderNumber"})
-    @ServiceLock(name = ORDER_CANCEL_LOCK,keys = {"#orderCancelDto.orderNumber"})
+
+    @RepeatExecuteLimit(name = CANCEL_PROGRAM_ORDER, keys = { "#orderCancelDto.orderNumber" })
+    @ServiceLock(name = ORDER_CANCEL_LOCK, keys = { "#orderCancelDto.orderNumber" })
     @Transactional(rollbackFor = Exception.class)
-    public boolean initiateCancel(OrderCancelDto orderCancelDto){
-        Order order = orderMapper.selectOne(Wrappers.lambdaQuery(Order.class)
-                .eq(Order::getOrderNumber, orderCancelDto.getOrderNumber()));
+    public boolean initiateCancel(OrderCancelDto orderCancelDto) {
+        Order order = orderMapper.selectOne(
+                Wrappers.lambdaQuery(Order.class).eq(Order::getOrderNumber, orderCancelDto.getOrderNumber()));
         if (Objects.isNull(order)) {
             throw new DaMaiFrameException(BaseCode.ORDER_NOT_EXIST);
         }
@@ -649,9 +739,8 @@ public class OrderService extends ServiceImpl<OrderMapper, Order> {
         }
         return cancel(orderCancelDto);
     }
-    
-    
-    public void delOrderAndOrderTicketUser(){
+
+    public void delOrderAndOrderTicketUser() {
         orderMapper.relDelOrder();
         orderTicketUserMapper.relDelOrderTicketUser();
     }
