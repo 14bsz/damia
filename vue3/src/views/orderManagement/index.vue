@@ -83,7 +83,7 @@ import MenuSideBar from '../../components/menuSidebar/index'
 import Header from '../../components/header/index'
 import Footer from '../../components/footer/index'
 import {useRoute, useRouter} from 'vue-router'
-import {cancelOrderApi, getOrderListApi} from '@/api/order.js'
+import {cancelOrderApi, getOrderListApi, payCheckApi} from '@/api/order.js'
 import {ElMessage} from "element-plus";
 //获取用户信息
 import useUserStore from "../../store/modules/user";
@@ -100,6 +100,9 @@ const orderListParams = reactive({
 const getOrderList = () => {
   getOrderListApi(orderListParams).then(response => {
     orderList.value = response.data;
+    subscribePendingOrders()
+    // 立即检查一次待支付订单的最新状态
+    checkPendingOrdersOnce()
   })
 }
 
@@ -162,7 +165,9 @@ const remainMap = reactive({})
 const expireMap = reactive({})
 let countdownTimer = null
 let pollTimer = null
+let quickPollTimer = null
 const canceledSet = new Set()
+const sseMap = {}
 
 function parseCreateTime(order){
   const t = order.createOrderTime ?? order.create_order_time ?? order.createTime ?? order.create_time
@@ -227,8 +232,10 @@ watch(orderList, () => {
 onBeforeUnmount(() => {
   if (countdownTimer) { clearInterval(countdownTimer) }
   if (pollTimer) { clearInterval(pollTimer) }
+  if (quickPollTimer) { clearInterval(quickPollTimer) }
   document.removeEventListener('visibilitychange', handleVisibilityChange)
   window.removeEventListener('focus', handleFocus)
+  Object.values(sseMap).forEach(es => { try { es.close() } catch(e){} })
 })
 
 function statusClassName(code){
@@ -258,10 +265,76 @@ function startPolling(){
   }, 30000)
 }
 
+function checkPendingOrdersOnce(){
+  const arr = Array.isArray(orderList.value) ? orderList.value : []
+  const nums = arr.filter(o => o && o.orderStatus == 1).map(o => o.orderNumber)
+  if (!nums.length) return
+  const numSet = new Set(nums)
+  nums.forEach(num => {
+    const params = { orderNumber: Number(num), payChannelType: 1 }
+    payCheckApi(params).then(res => {
+      if (res && String(res.code) === '0' && res.data) {
+        const st = Number(res.data.orderStatus || 0)
+        const idx = orderList.value?.findIndex?.(o => o.orderNumber === num) ?? -1
+        if (idx > -1 && st && st !== orderList.value[idx].orderStatus) {
+          orderList.value[idx].orderStatus = st
+        }
+      }
+    }).catch(() => {})
+  })
+}
+
+function startQuickPolling(){
+  if (quickPollTimer) { clearInterval(quickPollTimer) }
+  quickPollTimer = setInterval(() => {
+    if (!document.hidden){
+      checkPendingOrdersOnce()
+    }
+  }, 2000)
+}
+
+function subscribePendingOrders(){
+  const arr = Array.isArray(orderList.value) ? orderList.value : []
+  arr.forEach(o => {
+    const num = o.orderNumber
+    if (o.orderStatus == 1 && num && !sseMap[num]){
+      const url = `/damai/order/order/status/subscribe?orderNumber=${num}`
+      const es = new EventSource(url)
+      es.onmessage = (e) => {
+        try {
+          const data = JSON.parse(e.data)
+          const idx = orderList.value?.findIndex?.(x => x.orderNumber === data.orderNumber) ?? -1
+          if (idx > -1 && data.orderStatus){
+            orderList.value[idx].orderStatus = Number(data.orderStatus)
+            if (Number(data.orderStatus) !== 1){
+              es.close(); delete sseMap[num]
+            }
+          }
+        }catch(err){}
+      }
+      es.addEventListener('orderStatus', (e) => {
+        try {
+          const data = JSON.parse(e.data)
+          const idx = orderList.value?.findIndex?.(x => x.orderNumber === data.orderNumber) ?? -1
+          if (idx > -1 && data.orderStatus){
+            orderList.value[idx].orderStatus = Number(data.orderStatus)
+            if (Number(data.orderStatus) !== 1){
+              es.close(); delete sseMap[num]
+            }
+          }
+        }catch(err){}
+      })
+      es.onerror = () => { try { es.close() } catch(e){}; delete sseMap[num] }
+      sseMap[num] = es
+    }
+  })
+}
+
 onMounted(() => {
   document.addEventListener('visibilitychange', handleVisibilityChange)
   window.addEventListener('focus', handleFocus)
   startPolling()
+  startQuickPolling()
 })
 </script>
 
