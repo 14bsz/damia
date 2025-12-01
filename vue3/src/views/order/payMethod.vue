@@ -1,5 +1,8 @@
 <template>
-  <div class="app-container">
+  <div class="app-container"
+       v-loading.fullscreen.lock="isPaying"
+       element-loading-text="正在跳转支付..."
+       element-loading-background="rgba(0, 0, 0, 0.7)">
     <div class="pay-header">
       <div class="back" role="button" aria-label="返回上一页" tabindex="0" @click="goBack" @keydown.enter="goBack" @keydown.space.prevent="goBack" @touchstart.prevent="goBack"><el-icon><ArrowLeftBold /></el-icon></div>
       <div class="content"><img :src="pay" alt=""><span>支付宝付款</span></div>
@@ -32,9 +35,9 @@
 
 <script setup name="PayMethod">
 import pay from "@/assets/section/pay.png"
-import {ref,onMounted,computed} from 'vue'
+import {ref,onMounted,computed,onBeforeUnmount} from 'vue'
 import {useRoute, useRouter} from 'vue-router'
-import {getOrderDetailApi,orderPayApi} from "@/api/order.js";
+import {getOrderDetailApi,orderPayApi,payCheckApi,cancelOrderApi} from "@/api/order.js";
 import { ElMessage } from 'element-plus'
 import { ArrowLeftBold } from '@element-plus/icons-vue'
 //订单编号
@@ -49,6 +52,8 @@ import {useMitt} from "@/utils/index";
 const emitter = useMitt();
 
 const isPaying = ref(false);
+let payCheckTimer = null;
+let remainTimerId = null;
 
 
 function continuePay() {
@@ -57,6 +62,7 @@ function continuePay() {
     getOrderDetail()
   }
 
+  isPaying.value = true
   const orderPayParams = {
     'platform':3,
     'orderNumber':orderNumber.value,
@@ -68,6 +74,7 @@ function continuePay() {
   }
   console.log('支付参数:', orderPayParams);
   orderPayApi(orderPayParams).then(response => {
+    isPaying.value = false
     console.log('支付接口返回:', response);
     // 优先判断后端是否返回错误码或 message
     if (response.code && response.code !== '0') {
@@ -94,6 +101,7 @@ function continuePay() {
     }
     ElMessage.error('支付链接获取失败，请稍后重试');
   }).catch(err => {
+    isPaying.value = false
     console.error('支付接口异常:', err);
     ElMessage.error('支付接口异常，请稍后重试');
   });
@@ -102,6 +110,7 @@ function continuePay() {
 //跳转后的接收值
 onMounted(() => {
   getOrderDetail()
+  startPayStatusPolling()
 })
 //订单详情方法
 function getOrderDetail() {
@@ -143,12 +152,46 @@ function updateRemainText(){
       const mm = String(Math.floor(diff/60000)).padStart(2,'0')
       const ss = String(Math.floor((diff%60000)/1000)).padStart(2,'0')
       remainText.value = mm+':'+ss
+      if (expire - now <= 0) {
+        if (remainTimerId) { clearInterval(remainTimerId); remainTimerId = null }
+        const num = Number(orderNumber.value)
+        if (num) {
+          cancelOrderApi({orderNumber: num}).finally(() => {
+            router.replace({ name: 'orderDetail', params: { orderNumber: num } })
+          })
+        }
+      }
     }
     tick()
-    setInterval(tick,1000)
+    remainTimerId = setInterval(tick,1000)
   }catch(e){
     remainText.value = ''
   }
+}
+
+function startPayStatusPolling(){
+  if (payCheckTimer) { clearInterval(payCheckTimer); payCheckTimer = null }
+  const num = Number(orderNumber.value)
+  if (!num) return
+  payCheckTimer = setInterval(() => {
+    const params = { orderNumber: num, payChannelType: 1 }
+    payCheckApi(params).then(res => {
+      if (res && String(res.code) === '0' && res.data) {
+        const st = Number(res.data.orderStatus || 0)
+        if (st === 3) {
+          clearInterval(payCheckTimer); payCheckTimer = null
+          if (remainTimerId) { clearInterval(remainTimerId); remainTimerId = null }
+          ElMessage.success('支付成功')
+          router.replace({ name: 'orderDetail', params: { orderNumber: num } })
+        } else if (st === 2 || st === 4) {
+          clearInterval(payCheckTimer); payCheckTimer = null
+          if (remainTimerId) { clearInterval(remainTimerId); remainTimerId = null }
+          ElMessage.warning('交易已关闭')
+          router.replace({ name: 'orderDetail', params: { orderNumber: num } })
+        }
+      }
+    }).catch(() => {})
+  }, 3000)
 }
 
 function submitAlipayForm(html){
@@ -263,6 +306,10 @@ function goBack(){
   }
 }
 
+onBeforeUnmount(() => {
+  if (payCheckTimer) { clearInterval(payCheckTimer); payCheckTimer = null }
+  if (remainTimerId) { clearInterval(remainTimerId); remainTimerId = null }
+})
 </script>
 
 <style scoped lang="scss">
