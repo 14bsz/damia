@@ -12,6 +12,9 @@
                 <template #title>
                   <span class="title">城市：</span>
                   <span>当前选中城市：</span><span class="active">{{ currentCity }}</span>
+                  <el-icon class="city-toggle-arrow" size = " 27" role="button" tabindex="0" @click.stop="toggleCityExpand" @keydown.enter="toggleCityExpand" :style="{ transform: isShow ? 'rotate(90deg)' : 'rotate(0deg)'}">
+                    <CaretBottom/>
+                  </el-icon>
                 </template>
                 <div class="city">
                   <ul style="margin-left: 70px">
@@ -372,6 +375,10 @@ const {proxy} = getCurrentInstance();
 const activeNames = ref(['1', '2', '3', '4'])
 const handleChange = (val) => {
   activeNames.value = ['1', '2', '3', '4'];//始终让四个面板显示，不可关闭
+}
+
+const toggleCityExpand = () => {
+  isShow.value = !isShow.value
 }
 
 
@@ -916,8 +923,8 @@ function removeTag(str, tag) {
   color: rgba(255, 55, 29, 0.85) !important;
 }
 
-:deep(.el-icon svg) {
-  display: none;
+:deep(.el-collapse-item__header .el-collapse-item__arrow) {
+  display: none !important;
 }
 
 :deep(.el-collapse-item__header .title) {
@@ -940,6 +947,17 @@ function removeTag(str, tag) {
   background: rgba(255, 55, 29, 0.05);
   color: rgba(255, 55, 29, 0.85) !important;
   font-weight: 600;
+}
+
+.city-toggle-arrow {
+  margin-left: auto;
+  padding-left: 8px;
+  transition: transform .2s ease;
+  cursor: pointer;
+  vertical-align: middle;
+  display: inline-flex;
+  align-items: center;
+  pointer-events: auto;
 }
 
 
