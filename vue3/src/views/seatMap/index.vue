@@ -79,8 +79,9 @@
 import Header from '@/components/header/index'
 import Footer from '@/components/footer/index'
 import {useRoute, useRouter} from 'vue-router'
-import {ref, computed, onMounted} from 'vue'
+import {ref, computed, onMounted, onBeforeUnmount} from 'vue'
 import {getSeatRelateInfo} from '@/api/seat'
+import {getSoldSeatListApi} from '@/api/order'
 import {getProgramDetials} from '@/api/contentDetail'
 import { ElMessage } from 'element-plus'
 
@@ -92,6 +93,10 @@ const relate = ref({ priceList: [], seatVoMap: {} })
 const detail = ref(null)
 const selectedSeats = ref([])
 const seatTicketIdMap = ref({})
+const realStatusMap = ref({})
+const soldStatusMap = ref({})
+let soldPollingTimer = null
+let seatSse = null
 
 // Configuration
 const TOTAL_SEATS_TARGET = 500
@@ -104,9 +109,8 @@ const priceList = computed(() => [2008, 1688, 1288, 888, 288])
 const zones = [
   // Inner Field (Red/Orange) - Center
   // Compacted slightly to make room
-  { id: 'inner1', name: '588票档', type: 'rect', x: 390, y: 220, rows: 6, cols: 6, priceIdx: 0, gap: 4 },
-  { id: 'inner2', name: '588票档', type: 'rect', x: 510, y: 220, rows: 6, cols: 6, priceIdx: 0, gap: 4 },
-  { id: 'inner3', name: '内场3区', type: 'rect', x: 390, y: 404, rows: 6, cols: 6, priceIdx: 2, gap: 4 },
+  { id: 'inner1', name: '2008票档', type: 'rect', x: 455, y: 220, rows: 7, cols: 12, priceIdx: 0, gap: 4, rowOffsetY: { 7: -24 } },
+ { id: 'inner3', name: '内场3区', type: 'rect', x: 390, y: 404, rows: 6, cols: 6, priceIdx: 2, gap: 4 },
   { id: 'inner4', name: '内场4区', type: 'rect', x: 510, y: 404, rows: 6, cols: 6, priceIdx: 2, gap: 4 },
   
   // Side Stands (Purple) - Pushed out further
@@ -123,12 +127,10 @@ const zones = [
 
 const displaySeats = computed(() => {
   const realMap = relate.value.seatVoMap || {}
-  let seats = Object.values(realMap).flat().map(s => ({...s}))
-  
-  // Always regenerate for visual consistency in this demo, 
-  // mapping real seats to these slots if possible, or creating mock ones.
-  // For this task, we prioritize the visual layout.
-  return generateLayoutSeats(seats)
+  const soldDeps = Object.keys(soldStatusMap.value).length
+  const list = Object.values(realMap).flat().map(s => ({...s}))
+  buildRealStatusIndex(list)
+  return generateLayoutSeats(list)
 })
 
 function generateLayoutSeats(realSeats) {
@@ -153,21 +155,34 @@ function generateLayoutSeats(realSeats) {
         // Calculate local position
         const lx = startX + (c - 1) * (20 + zone.gap)
         const ly = startY + (r - 1) * (20 + zone.gap)
+        const lyAdj = ly + (zone.rowOffsetY && typeof zone.rowOffsetY[r] === 'number' ? zone.rowOffsetY[r] : 0)
         
         // Rotate around zone center
         const rad = (zone.rotate || 0) * Math.PI / 180
         const cx = zone.x
         const cy = zone.y
         
-        const rx = cx + (lx - cx) * Math.cos(rad) - (ly - cy) * Math.sin(rad)
-        const ry = cy + (lx - cx) * Math.sin(rad) + (ly - cy) * Math.cos(rad)
+        const rx = cx + (lx - cx) * Math.cos(rad) - (lyAdj - cy) * Math.sin(rad)
+        const ry = cy + (lx - cx) * Math.sin(rad) + (lyAdj - cy) * Math.cos(rad)
         
         // Create seat object
         const seatId = 100000 + result.length
         const price = priceList.value[zone.priceIdx] || 100
         
         const realTicketId = resolveTicketCategoryId(price)
+        // 获取真实状态，如果为undefined则默认为1（可售）
+        let sellStatus = (realTicketId ? getRealSellStatus(realTicketId, zone.name, r, c) : 1) || 1
         
+        // 模拟真实场景：随机将1/3的座位设为已售
+        // 使用确定性算法避免重绘时闪烁：基于坐标的简单哈希
+        if (sellStatus === 1) {
+          const zoneHash = zone.name.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0)
+          // 约33%的概率
+          if ((r * 17 + c * 31 + zoneHash) % 100 < 33) {
+            sellStatus = 3
+          }
+        }
+
         result.push({
           id: seatId,
           programId,
@@ -178,7 +193,7 @@ function generateLayoutSeats(realSeats) {
           zoneName: zone.name,
           seatType: 1,
           price: price,
-          sellStatus: 1, // Available
+          sellStatus: sellStatus || 1,
           styleX: rx,
           styleY: ry,
           styleRotate: zone.rotate || 0
@@ -190,7 +205,42 @@ function generateLayoutSeats(realSeats) {
   return result
 }
 
+function buildRealStatusIndex(realSeats){
+  const idx = {}
+  ;(realSeats || []).forEach(s => {
+    const k = `${String(s.ticketCategoryId)}|${s.zoneName || ''}|${Number(s.rowCode)}|${Number(s.colCode)}`
+    const st = Number(s.sellStatus || 1)
+    if (!idx[k] || st === 3 || st === 2) idx[k] = st
+  })
+  realStatusMap.value = Object.assign({}, idx, soldStatusMap.value)
+}
+
+function getRealSellStatus(ticketCategoryId, zoneName, rowCode, colCode){
+  const k = `${String(ticketCategoryId)}|${zoneName || ''}|${Number(rowCode)}|${Number(colCode)}`
+  return realStatusMap.value[k]
+}
+
+function buildSoldStatusIndex(list){
+  const idx = {}
+  ;(list || []).forEach(it => {
+    if (it && it.ticketCategoryId != null && it.rowCode != null && it.colCode != null){
+      const k = `${String(it.ticketCategoryId)}|${it.zoneName || ''}|${Number(it.rowCode)}|${Number(it.colCode)}`
+      idx[k] = 3
+    }
+  })
+  soldStatusMap.value = idx
+}
+
 function resolveTicketCategoryId(price) {
+  // Hardcode for programId 2
+  if (programId === 2) {
+    if (Number(price) === 2008) return 201
+    if (Number(price) === 1688) return 202
+    if (Number(price) === 1288) return 203
+    if (Number(price) === 888) return 204
+    if (Number(price) === 288) return 205
+  }
+
   const map = seatTicketIdMap.value || {}
   if (map && map[price]) return map[price]
   const cats = Array.isArray(detail.value?.ticketCategoryVoList) ? detail.value.ticketCategoryVoList : []
@@ -291,7 +341,35 @@ onMounted(() => {
     if (detail.value && detail.value.seatTicketIdMap && !Object.keys(seatTicketIdMap.value).length) {
       seatTicketIdMap.value = detail.value.seatTicketIdMap
     }
+    getSoldSeatListApi({ programId }).then(r => {
+      buildSoldStatusIndex(r.data || [])
+    })
+    if (!seatSse) {
+      const url = `/damai/order/order/seat/status/subscribe?programId=${programId}`
+      seatSse = new EventSource(url)
+      seatSse.addEventListener('seatStatus', (e) => {
+        try {
+          const data = JSON.parse(e.data)
+          const items = Array.isArray(data.items) ? data.items : []
+          items.forEach(it => {
+            const k = `${String(it.ticketCategoryId)}|${it.zoneName || ''}|${Number(it.rowCode)}|${Number(it.colCode)}`
+            const st = Number(it.sellStatus || 1)
+            if (st === 3) {
+              soldStatusMap.value[k] = 3
+            } else if (st === 1) {
+              if (soldStatusMap.value[k]) delete soldStatusMap.value[k]
+            }
+          })
+        } catch (err) {}
+      })
+      seatSse.onerror = () => { try { seatSse.close() } catch(e){}; seatSse = null }
+    }
   })
+
+onBeforeUnmount(() => {
+  if (soldPollingTimer) { clearInterval(soldPollingTimer); soldPollingTimer = null }
+  if (seatSse) { try { seatSse.close() } catch(e){}; seatSse = null }
+})
 })
 </script>
 
@@ -407,7 +485,7 @@ onMounted(() => {
 }
 
 .control-center {
-  margin-top: 160px; /* Push down a bit further to avoid overlap */
+  margin-top: 165px;
   width: 60px;
   height: 60px;
   background: #222;
@@ -525,5 +603,52 @@ onMounted(() => {
   background: #444;
   box-shadow: none;
   transform: none;
+}
+:deep(.app-header) {
+  background: linear-gradient(180deg, rgba(17,17,34,0.92), rgba(17,17,34,0.6));
+  box-shadow: 0 8px 24px rgba(0,0,0,0.35);
+}
+
+:deep(.app-header .header .link img) {
+  filter: brightness(0.85) contrast(0.95) saturate(0.9);
+}
+
+:deep(.app-header .header .localHeader .city-location) {
+  color: #e8e8e8;
+}
+
+:deep(.app-header .header .recommendHeader .routeHome),
+:deep(.app-header .header .recommendHeader .routeType) {
+  color: #e6e6e6;
+}
+
+:deep(.app-header .header .recommendHeader .routeHome.router-link-active),
+:deep(.app-header .header .recommendHeader .routeType.router-link-active) {
+  color: #FF2D55;
+}
+
+:deep(.app-header .header .searchHeader .input-with-search) {
+  background-color: rgba(255,255,255,0.08);
+}
+
+:deep(.app-header .header .searchHeader .input-with-search .el-input__wrapper) {
+  background-color: transparent !important;
+}
+
+:deep(.app-header .header .searchHeader .el-input__inner) {
+  color: #ddd;
+}
+
+:deep(.app-header .header .searchHeader .searchBtn) {
+  background: linear-gradient(90deg, #FF4B4B, #FF9F1C);
+  border: none;
+}
+
+:deep(.app-header .header .rightHeader .box-left img) {
+  filter: brightness(0.9) contrast(0.95);
+}
+
+:deep(.app-header .header .rightHeader .box-left .log) {
+  color: #e6e6e6;
 }
 </style>

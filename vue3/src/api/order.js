@@ -94,3 +94,11 @@ export function payCheckApi(params){
         data: params
     })
 }
+
+export function getSoldSeatListApi(data){
+    return request({
+        url: '/damai/order/order/sold/seat/list',
+        method: 'post',
+        data: data
+    })
+}
