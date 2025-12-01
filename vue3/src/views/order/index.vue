@@ -1,5 +1,8 @@
 <template>
-  <div class="app-container">
+  <div class="app-container"
+       v-loading.fullscreen.lock="loading"
+       element-loading-text="正在为您下单..."
+       element-loading-background="rgba(0, 0, 0, 0.7)">
     <div class="confirm-order">
       <div class="basic-info1">
         <div class="top">
