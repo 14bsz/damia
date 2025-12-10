@@ -202,7 +202,7 @@ public class SeatService extends ServiceImpl<SeatMapper, Seat> {
         Long programId = seatBatchAddDto.getProgramId();
         List<SeatBatchRelateInfoAddDto> seatBatchRelateInfoAddDtoList = seatBatchAddDto.getSeatBatchRelateInfoAddDtoList();
         
-        
+        List<Seat> toInsert = new ArrayList<>();
         int rowIndex = 0;
         for (SeatBatchRelateInfoAddDto seatBatchRelateInfoAddDto : seatBatchRelateInfoAddDtoList) {
             Long ticketCategoryId = seatBatchRelateInfoAddDto.getTicketCategoryId();
@@ -229,11 +229,13 @@ public class SeatService extends ServiceImpl<SeatMapper, Seat> {
                     seat.setSeatType(1);
                     seat.setPrice(price);
                     seat.setSellStatus(SellStatus.NO_SOLD.getCode());
-                    seatMapper.insert(seat);
+                    toInsert.add(seat);
                 }
             }
         }
-        
-        return true;
+        if (CollectionUtil.isEmpty(toInsert)) {
+            return true;
+        }
+        return saveBatch(toInsert, 500);
     }
 }
