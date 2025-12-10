@@ -60,3 +60,41 @@ export function login(email, mobile, password, code) {
          data:data
      })
  }
+
+/**
+ * 发送短信验证码
+ * @param mobile 手机号
+ * @param type 验证码类型 login-登录, register-注册
+ * @returns {*}
+ */
+export function sendSmsCode(mobile, type) {
+    const data = {
+        mobile,
+        type
+    }
+    return request({
+        url: '/damai/user/user/send/sms/code',
+        method: 'post',
+        data: data
+    })
+}
+
+/**
+ * 短信验证码登录
+ * @param mobile 手机号
+ * @param smsCode 短信验证码
+ * @param code 渠道code 0001(pc网站)
+ * @returns {*}
+ */
+export function smsLogin(mobile, smsCode, code) {
+    const data = {
+        mobile,
+        smsCode,
+        code
+    }
+    return request({
+        url: '/damai/user/user/sms/login',
+        method: 'post',
+        data: data
+    })
+}
