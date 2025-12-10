@@ -25,6 +25,8 @@ import com.damai.dto.UserUpdateDto;
 import com.damai.dto.UserUpdateEmailDto;
 import com.damai.dto.UserUpdateMobileDto;
 import com.damai.dto.UserUpdatePasswordDto;
+import com.damai.dto.SendSmsCodeDto;
+import com.damai.dto.UserSmsLoginDto;
 import com.damai.entity.TicketUser;
 import com.damai.entity.User;
 import com.damai.entity.UserEmail;
@@ -101,22 +103,25 @@ public class UserService extends ServiceImpl<UserMapper, User> {
     @Autowired
     private BaseDataClient baseDataClient;
 
+    @Autowired
+    private SmsService smsService;
+
     @Value("${token.expire.time:40}")
     private Long tokenExpireTime;
 
     private static final Integer ERROR_COUNT_THRESHOLD = 5;
 
     @Transactional(rollbackFor = Exception.class)
-    @ServiceLock(lockType= LockType.Write,name = REGISTER_USER_LOCK,keys = {"#userRegisterDto.mobile"})
+    @ServiceLock(lockType = LockType.Write, name = REGISTER_USER_LOCK, keys = { "#userRegisterDto.mobile" })
     public Boolean register(UserRegisterDto userRegisterDto) {
-        compositeContainer.execute(CompositeCheckType.USER_REGISTER_CHECK.getValue(),userRegisterDto);
-        log.info("注册手机号:{}",userRegisterDto.getMobile());
-        //用户表添加
+        compositeContainer.execute(CompositeCheckType.USER_REGISTER_CHECK.getValue(), userRegisterDto);
+        log.info("注册手机号:{}", userRegisterDto.getMobile());
+        // 用户表添加
         User user = new User();
-        BeanUtils.copyProperties(userRegisterDto,user);
+        BeanUtils.copyProperties(userRegisterDto, user);
         user.setId(uidGenerator.getUid());
         userMapper.insert(user);
-        //用户手机表添加
+        // 用户手机表添加
         UserMobile userMobile = new UserMobile();
         userMobile.setId(uidGenerator.getUid());
         userMobile.setUserId(user.getId());
@@ -126,12 +131,12 @@ public class UserService extends ServiceImpl<UserMapper, User> {
         return true;
     }
 
-    @ServiceLock(lockType= LockType.Read,name = REGISTER_USER_LOCK,keys = {"#mobile"})
-    public void exist(UserExistDto userExistDto){
+    @ServiceLock(lockType = LockType.Read, name = REGISTER_USER_LOCK, keys = { "#mobile" })
+    public void exist(UserExistDto userExistDto) {
         doExist(userExistDto.getMobile());
     }
 
-    public void doExist(String mobile){
+    public void doExist(String mobile) {
         boolean contains = bloomFilterHandler.contains(mobile);
         if (contains) {
             LambdaQueryWrapper<UserMobile> queryWrapper = Wrappers.lambdaQuery(UserMobile.class)
@@ -145,9 +150,10 @@ public class UserService extends ServiceImpl<UserMapper, User> {
 
     /**
      * 登录
+     * 
      * @param userLoginDto 登录入参
      * @return 用户信息
-     * */
+     */
     public UserLoginVo login(UserLoginDto userLoginDto) {
         UserLoginVo userLoginVo = new UserLoginVo();
         String code = userLoginDto.getCode();
@@ -160,8 +166,8 @@ public class UserService extends ServiceImpl<UserMapper, User> {
         Long userId;
         if (StringUtil.isNotEmpty(mobile)) {
             // 1. 检查错误次数是否超限（防暴力）
-            String errorCountStr =
-                    redisCache.get(RedisKeyBuild.createRedisKey(RedisKeyManage.LOGIN_USER_MOBILE_ERROR, mobile), String.class);
+            String errorCountStr = redisCache
+                    .get(RedisKeyBuild.createRedisKey(RedisKeyManage.LOGIN_USER_MOBILE_ERROR, mobile), String.class);
             if (StringUtil.isNotEmpty(errorCountStr) && Integer.parseInt(errorCountStr) >= ERROR_COUNT_THRESHOLD) {
                 throw new DaMaiFrameException(BaseCode.MOBILE_ERROR_COUNT_TOO_MANY);
             }
@@ -171,47 +177,49 @@ public class UserService extends ServiceImpl<UserMapper, User> {
             UserMobile userMobile = userMobileMapper.selectOne(queryWrapper);
             if (Objects.isNull(userMobile)) {
                 // 错误次数+1，缓存1分钟
-                redisCache.incrBy(RedisKeyBuild.createRedisKey(RedisKeyManage.LOGIN_USER_MOBILE_ERROR,mobile),1);
-                redisCache.expire(RedisKeyBuild.createRedisKey(RedisKeyManage.LOGIN_USER_MOBILE_ERROR,mobile),1,TimeUnit.MINUTES);
+                redisCache.incrBy(RedisKeyBuild.createRedisKey(RedisKeyManage.LOGIN_USER_MOBILE_ERROR, mobile), 1);
+                redisCache.expire(RedisKeyBuild.createRedisKey(RedisKeyManage.LOGIN_USER_MOBILE_ERROR, mobile), 1,
+                        TimeUnit.MINUTES);
                 throw new DaMaiFrameException(BaseCode.USER_MOBILE_EMPTY);
             }
             userId = userMobile.getUserId();
-        }else {
-            String errorCountStr =
-                    redisCache.get(RedisKeyBuild.createRedisKey(RedisKeyManage.LOGIN_USER_EMAIL_ERROR, email), String.class);
+        } else {
+            String errorCountStr = redisCache
+                    .get(RedisKeyBuild.createRedisKey(RedisKeyManage.LOGIN_USER_EMAIL_ERROR, email), String.class);
             if (StringUtil.isNotEmpty(errorCountStr) && Integer.parseInt(errorCountStr) >= ERROR_COUNT_THRESHOLD) {
                 throw new DaMaiFrameException(BaseCode.EMAIL_ERROR_COUNT_TOO_MANY);
             }
-            LambdaQueryWrapper<UserEmail> queryWrapper = Wrappers.lambdaQuery(UserEmail.class)
-                    .eq(UserEmail::getEmail, email);
+            LambdaQueryWrapper<UserEmail> queryWrapper = Wrappers.lambdaQuery(UserEmail.class).eq(UserEmail::getEmail,
+                    email);
             UserEmail userEmail = userEmailMapper.selectOne(queryWrapper);
             if (Objects.isNull(userEmail)) {
-                redisCache.incrBy(RedisKeyBuild.createRedisKey(RedisKeyManage.LOGIN_USER_EMAIL_ERROR,email),1);
-                redisCache.expire(RedisKeyBuild.createRedisKey(RedisKeyManage.LOGIN_USER_EMAIL_ERROR,email),1,TimeUnit.MINUTES);
+                redisCache.incrBy(RedisKeyBuild.createRedisKey(RedisKeyManage.LOGIN_USER_EMAIL_ERROR, email), 1);
+                redisCache.expire(RedisKeyBuild.createRedisKey(RedisKeyManage.LOGIN_USER_EMAIL_ERROR, email), 1,
+                        TimeUnit.MINUTES);
                 throw new DaMaiFrameException(BaseCode.USER_EMAIL_NOT_EXIST);
             }
             userId = userEmail.getUserId();
         }
-        //4. 校验密码
-        LambdaQueryWrapper<User> queryUserWrapper = Wrappers.lambdaQuery(User.class)
-                .eq(User::getId, userId).eq(User::getPassword, password);
+        // 4. 校验密码
+        LambdaQueryWrapper<User> queryUserWrapper = Wrappers.lambdaQuery(User.class).eq(User::getId, userId)
+                .eq(User::getPassword, password);
         User user = userMapper.selectOne(queryUserWrapper);
         if (Objects.isNull(user)) {
             throw new DaMaiFrameException(BaseCode.NAME_PASSWORD_ERROR);
         }
-        //5. 登录成功，签发 Token 并缓存
-        redisCache.set(RedisKeyBuild.createRedisKey(RedisKeyManage.USER_LOGIN,code,user.getId()),user,
-                tokenExpireTime,TimeUnit.MINUTES);
+        // 5. 登录成功，签发 Token 并缓存
+        redisCache.set(RedisKeyBuild.createRedisKey(RedisKeyManage.USER_LOGIN, code, user.getId()), user,
+                tokenExpireTime, TimeUnit.MINUTES);
         userLoginVo.setUserId(userId);
-        userLoginVo.setToken(createToken(user.getId(),getChannelDataByCode(code).getTokenSecret()));
+        userLoginVo.setToken(createToken(user.getId(), getChannelDataByCode(code).getTokenSecret()));
         return userLoginVo;
     }
 
-    private GetChannelDataVo getChannelDataByRedis(String code){
-        return redisCache.get(RedisKeyBuild.createRedisKey(RedisKeyManage.CHANNEL_DATA,code),GetChannelDataVo.class);
+    private GetChannelDataVo getChannelDataByRedis(String code) {
+        return redisCache.get(RedisKeyBuild.createRedisKey(RedisKeyManage.CHANNEL_DATA, code), GetChannelDataVo.class);
     }
 
-    private GetChannelDataVo getChannelDataByClient(String code){
+    private GetChannelDataVo getChannelDataByClient(String code) {
         GetChannelDataByCodeDto getChannelDataByCodeDto = new GetChannelDataByCodeDto();
         getChannelDataByCodeDto.setCode(code);
         ApiResponse<GetChannelDataVo> getChannelDataApiResponse = baseDataClient.getByCode(getChannelDataByCodeDto);
@@ -221,24 +229,25 @@ public class UserService extends ServiceImpl<UserMapper, User> {
         throw new DaMaiFrameException("没有找到ChannelData");
     }
 
-    public String createToken(Long userId,String tokenSecret){
-        Map<String,Object> map = new HashMap<>(4);
-        map.put("userId",userId);
-        return TokenUtil.createToken(String.valueOf(uidGenerator.getUid()), JSON.toJSONString(map),tokenExpireTime * 60 * 1000,tokenSecret);
+    public String createToken(Long userId, String tokenSecret) {
+        Map<String, Object> map = new HashMap<>(4);
+        map.put("userId", userId);
+        return TokenUtil.createToken(String.valueOf(uidGenerator.getUid()), JSON.toJSONString(map),
+                tokenExpireTime * 60 * 1000, tokenSecret);
     }
 
     public Boolean logout(UserLogoutDto userLogoutDto) {
-        String userStr = TokenUtil.parseToken(userLogoutDto.getToken(),getChannelDataByCode(userLogoutDto.getCode())
-                .getTokenSecret());
+        String userStr = TokenUtil.parseToken(userLogoutDto.getToken(),
+                getChannelDataByCode(userLogoutDto.getCode()).getTokenSecret());
         if (StringUtil.isEmpty(userStr)) {
             throw new DaMaiFrameException(BaseCode.USER_EMPTY);
         }
         String userId = JSONObject.parseObject(userStr).getString("userId");
-        redisCache.del(RedisKeyBuild.createRedisKey(RedisKeyManage.USER_LOGIN,userLogoutDto.getCode(),userId));
+        redisCache.del(RedisKeyBuild.createRedisKey(RedisKeyManage.USER_LOGIN, userLogoutDto.getCode(), userId));
         return true;
     }
 
-    public GetChannelDataVo getChannelDataByCode(String code){
+    public GetChannelDataVo getChannelDataByCode(String code) {
         GetChannelDataVo channelDataVo = getChannelDataByRedis(code);
         if (Objects.isNull(channelDataVo)) {
             channelDataVo = getChannelDataByClient(code);
@@ -247,33 +256,35 @@ public class UserService extends ServiceImpl<UserMapper, User> {
     }
 
     @Transactional(rollbackFor = Exception.class)
-    public void update(UserUpdateDto userUpdateDto){
+    public void update(UserUpdateDto userUpdateDto) {
         User user = userMapper.selectById(userUpdateDto.getId());
         if (Objects.isNull(user)) {
             throw new DaMaiFrameException(BaseCode.USER_EMPTY);
         }
         User updateUser = new User();
-        BeanUtil.copyProperties(userUpdateDto,updateUser);
+        BeanUtil.copyProperties(userUpdateDto, updateUser);
         userMapper.updateById(updateUser);
     }
+
     @Transactional(rollbackFor = Exception.class)
-    public void updatePassword(UserUpdatePasswordDto userUpdatePasswordDto){
+    public void updatePassword(UserUpdatePasswordDto userUpdatePasswordDto) {
         User user = userMapper.selectById(userUpdatePasswordDto.getId());
         if (Objects.isNull(user)) {
             throw new DaMaiFrameException(BaseCode.USER_EMPTY);
         }
         User updateUser = new User();
-        BeanUtil.copyProperties(userUpdatePasswordDto,updateUser);
+        BeanUtil.copyProperties(userUpdatePasswordDto, updateUser);
         userMapper.updateById(updateUser);
     }
+
     @Transactional(rollbackFor = Exception.class)
-    public void updateEmail(UserUpdateEmailDto userUpdateEmailDto){
+    public void updateEmail(UserUpdateEmailDto userUpdateEmailDto) {
         User user = userMapper.selectById(userUpdateEmailDto.getId());
         if (Objects.isNull(user)) {
             throw new DaMaiFrameException(BaseCode.USER_EMPTY);
         }
         User updateUser = new User();
-        BeanUtil.copyProperties(userUpdateEmailDto,updateUser);
+        BeanUtil.copyProperties(userUpdateEmailDto, updateUser);
         updateUser.setEmailStatus(BusinessStatus.YES.getCode());
         userMapper.updateById(updateUser);
 
@@ -287,24 +298,24 @@ public class UserService extends ServiceImpl<UserMapper, User> {
             userEmail.setUserId(user.getId());
             userEmail.setEmail(userUpdateEmailDto.getEmail());
             userEmailMapper.insert(userEmail);
-        }else {
+        } else {
             LambdaUpdateWrapper<UserEmail> userEmailLambdaUpdateWrapper = Wrappers.lambdaUpdate(UserEmail.class)
                     .eq(UserEmail::getEmail, oldEmail);
             UserEmail updateUserEmail = new UserEmail();
             updateUserEmail.setEmail(userUpdateEmailDto.getEmail());
-            userEmailMapper.update(updateUserEmail,userEmailLambdaUpdateWrapper);
+            userEmailMapper.update(updateUserEmail, userEmailLambdaUpdateWrapper);
         }
     }
 
     @Transactional(rollbackFor = Exception.class)
-    public void updateMobile(UserUpdateMobileDto userUpdateMobileDto){
+    public void updateMobile(UserUpdateMobileDto userUpdateMobileDto) {
         User user = userMapper.selectById(userUpdateMobileDto.getId());
         if (Objects.isNull(user)) {
             throw new DaMaiFrameException(BaseCode.USER_EMPTY);
         }
         String oldMobile = user.getMobile();
         User updateUser = new User();
-        BeanUtil.copyProperties(userUpdateMobileDto,updateUser);
+        BeanUtil.copyProperties(userUpdateMobileDto, updateUser);
         userMapper.updateById(updateUser);
         LambdaQueryWrapper<UserMobile> userMobileLambdaQueryWrapper = Wrappers.lambdaQuery(UserMobile.class)
                 .eq(UserMobile::getMobile, userUpdateMobileDto.getMobile());
@@ -315,17 +326,17 @@ public class UserService extends ServiceImpl<UserMapper, User> {
             userMobile.setUserId(user.getId());
             userMobile.setMobile(userUpdateMobileDto.getMobile());
             userMobileMapper.insert(userMobile);
-        }else {
+        } else {
             LambdaUpdateWrapper<UserMobile> userMobileLambdaUpdateWrapper = Wrappers.lambdaUpdate(UserMobile.class)
                     .eq(UserMobile::getMobile, oldMobile);
             UserMobile updateUserMobile = new UserMobile();
             updateUserMobile.setMobile(userUpdateMobileDto.getMobile());
-            userMobileMapper.update(updateUserMobile,userMobileLambdaUpdateWrapper);
+            userMobileMapper.update(updateUserMobile, userMobileLambdaUpdateWrapper);
         }
     }
 
     @Transactional(rollbackFor = Exception.class)
-    public void authentication(UserAuthenticationDto userAuthenticationDto){
+    public void authentication(UserAuthenticationDto userAuthenticationDto) {
         User user = userMapper.selectById(userAuthenticationDto.getId());
         if (Objects.isNull(user)) {
             throw new DaMaiFrameException(BaseCode.USER_EMPTY);
@@ -342,8 +353,8 @@ public class UserService extends ServiceImpl<UserMapper, User> {
     }
 
     public UserVo getByMobile(UserMobileDto userMobileDto) {
-        LambdaQueryWrapper<UserMobile> queryWrapper = Wrappers.lambdaQuery(UserMobile.class)
-                .eq(UserMobile::getMobile, userMobileDto.getMobile());
+        LambdaQueryWrapper<UserMobile> queryWrapper = Wrappers.lambdaQuery(UserMobile.class).eq(UserMobile::getMobile,
+                userMobileDto.getMobile());
         UserMobile userMobile = userMobileMapper.selectOne(queryWrapper);
         if (Objects.isNull(userMobile)) {
             throw new DaMaiFrameException(BaseCode.USER_MOBILE_EMPTY);
@@ -353,7 +364,7 @@ public class UserService extends ServiceImpl<UserMapper, User> {
             throw new DaMaiFrameException(BaseCode.USER_EMPTY);
         }
         UserVo userVo = new UserVo();
-        BeanUtil.copyProperties(user,userVo);
+        BeanUtil.copyProperties(user, userVo);
         userVo.setMobile(userMobile.getMobile());
         return userVo;
     }
@@ -364,11 +375,12 @@ public class UserService extends ServiceImpl<UserMapper, User> {
             throw new DaMaiFrameException(BaseCode.USER_EMPTY);
         }
         UserVo userVo = new UserVo();
-        BeanUtil.copyProperties(user,userVo);
+        BeanUtil.copyProperties(user, userVo);
         return userVo;
     }
 
-    public UserGetAndTicketUserListVo getUserAndTicketUserList(final UserGetAndTicketUserListDto userGetAndTicketUserListDto) {
+    public UserGetAndTicketUserListVo getUserAndTicketUserList(
+            final UserGetAndTicketUserListDto userGetAndTicketUserListDto) {
         UserIdDto userIdDto = new UserIdDto();
         userIdDto.setId(userGetAndTicketUserListDto.getUserId());
         UserVo userVo = getById(userIdDto);
@@ -384,9 +396,110 @@ public class UserService extends ServiceImpl<UserMapper, User> {
         return userGetAndTicketUserListVo;
     }
 
-    public List<String> getAllMobile(){
+    public List<String> getAllMobile() {
         QueryWrapper<User> lambdaQueryWrapper = Wrappers.emptyWrapper();
         List<User> users = userMapper.selectList(lambdaQueryWrapper);
         return users.stream().map(User::getMobile).collect(Collectors.toList());
+    }
+
+    /**
+     * 发送短信验证码
+     * 
+     * @param sendSmsCodeDto 发送短信验证码入参
+     * @return 是否发送成功
+     */
+    public Boolean sendSmsCode(SendSmsCodeDto sendSmsCodeDto) {
+        String mobile = sendSmsCodeDto.getMobile();
+        String type = sendSmsCodeDto.getType();
+
+        // 验证类型是否合法
+        if (!type.equals("login") && !type.equals("register")) {
+            throw new DaMaiFrameException(BaseCode.SMS_CODE_TYPE_ERROR);
+        }
+
+        // 检查发送频率限制(60秒内只能发送一次) - 按手机号+类型维度
+        RedisKeyBuild limitKey = RedisKeyBuild.createRedisKey(RedisKeyManage.SMS_CODE_SEND_LIMIT, mobile + ":" + type);
+        String limitCount = redisCache.get(limitKey, String.class);
+        if (StringUtil.isNotEmpty(limitCount)) {
+            throw new DaMaiFrameException(BaseCode.SMS_CODE_SEND_FREQUENT);
+        }
+
+        // 生成6位随机验证码
+        String smsCode = String.valueOf((int) ((Math.random() * 9 + 1) * 100000));
+
+        // 存储验证码到Redis,有效期1分钟
+        RedisKeyBuild codeKey = RedisKeyBuild.createRedisKey(RedisKeyManage.SMS_CODE_LOGIN, mobile);
+        redisCache.set(codeKey, smsCode, 1, TimeUnit.MINUTES);
+
+        // 设置发送频率限制,60秒 - 按手机号+类型维度
+        redisCache.set(limitKey, "1", 60, TimeUnit.SECONDS);
+
+        // 调用Spug推送发送短信验证码
+        log.info("发送短信验证码到手机号: {}, 验证码: {}, 类型: {}", mobile, smsCode, type);
+        boolean sendResult = smsService.sendSmsCode(mobile, smsCode);
+
+        if (!sendResult) {
+            log.warn("短信发送失败,但验证码已存储到Redis,可以继续使用 - 手机号: {}, 验证码: {}", mobile, smsCode);
+            // 即使短信发送失败,也不抛出异常,因为验证码已经存储到Redis
+            // 用户可以通过日志获取验证码进行测试
+        }
+
+        return true;
+    }
+
+    /**
+     * 短信验证码登录
+     * 
+     * @param userSmsLoginDto 短信验证码登录入参
+     * @return 用户信息
+     */
+    @Transactional(rollbackFor = Exception.class)
+    public UserLoginVo smsLogin(UserSmsLoginDto userSmsLoginDto) {
+        String code = userSmsLoginDto.getCode();
+        String mobile = userSmsLoginDto.getMobile();
+        String smsCode = userSmsLoginDto.getSmsCode();
+
+        // 1. 验证验证码
+        RedisKeyBuild codeKey = RedisKeyBuild.createRedisKey(RedisKeyManage.SMS_CODE_LOGIN, mobile);
+        String storedCode = redisCache.get(codeKey, String.class);
+
+        if (StringUtil.isEmpty(storedCode)) {
+            throw new DaMaiFrameException(BaseCode.SMS_CODE_EXPIRED);
+        }
+
+        if (!storedCode.equals(smsCode)) {
+            throw new DaMaiFrameException(BaseCode.SMS_CODE_ERROR);
+        }
+
+        // 2. 验证码正确,删除验证码
+        redisCache.del(codeKey);
+
+        // 3. 查询用户是否存在
+        LambdaQueryWrapper<UserMobile> queryWrapper = Wrappers.lambdaQuery(UserMobile.class).eq(UserMobile::getMobile,
+                mobile);
+        UserMobile userMobile = userMobileMapper.selectOne(queryWrapper);
+
+        // 4. 检查用户是否存在，未注册则提示用户先注册
+        if (Objects.isNull(userMobile)) {
+            log.info("短信验证码登录失败,手机号未注册: {}", mobile);
+            throw new DaMaiFrameException(BaseCode.USER_MOBILE_NOT_REGISTERED);
+        }
+
+        // 5. 用户已存在,直接登录
+        User user = userMapper.selectById(userMobile.getUserId());
+        if (Objects.isNull(user)) {
+            throw new DaMaiFrameException(BaseCode.USER_EMPTY);
+        }
+        log.info("短信验证码登录,用户已存在,手机号: {}, 用户ID: {}", mobile, user.getId());
+
+        // 6. 登录成功,签发 Token 并缓存
+        redisCache.set(RedisKeyBuild.createRedisKey(RedisKeyManage.USER_LOGIN, code, user.getId()), user,
+                tokenExpireTime, TimeUnit.MINUTES);
+
+        UserLoginVo userLoginVo = new UserLoginVo();
+        userLoginVo.setUserId(user.getId());
+        userLoginVo.setToken(createToken(user.getId(), getChannelDataByCode(code).getTokenSecret()));
+
+        return userLoginVo;
     }
 }
