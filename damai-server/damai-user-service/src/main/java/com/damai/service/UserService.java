@@ -106,6 +106,9 @@ public class UserService extends ServiceImpl<UserMapper, User> {
     @Autowired
     private SmsService smsService;
 
+    @Autowired
+    private EmailService emailService;
+
     @Value("${token.expire.time:40}")
     private Long tokenExpireTime;
 
@@ -140,7 +143,8 @@ public class UserService extends ServiceImpl<UserMapper, User> {
         boolean contains = bloomFilterHandler.contains(mobile);
         if (contains) {
             LambdaQueryWrapper<UserMobile> queryWrapper = Wrappers.lambdaQuery(UserMobile.class)
-                    .eq(UserMobile::getMobile, mobile);
+                    .eq(UserMobile::getMobile, mobile)
+                    .eq(UserMobile::getStatus, 1);
             UserMobile userMobile = userMobileMapper.selectOne(queryWrapper);
             if (Objects.nonNull(userMobile)) {
                 throw new DaMaiFrameException(BaseCode.USER_EXIST);
@@ -172,7 +176,9 @@ public class UserService extends ServiceImpl<UserMapper, User> {
                 throw new DaMaiFrameException(BaseCode.MOBILE_ERROR_COUNT_TOO_MANY);
             }
             LambdaQueryWrapper<UserMobile> queryWrapper = Wrappers.lambdaQuery(UserMobile.class)
-                    .eq(UserMobile::getMobile, mobile);
+                    .eq(UserMobile::getMobile, mobile)
+                    .eq(UserMobile::getStatus, 1)
+                    .last("LIMIT 1");
             // 2. 查手机号是否存在
             UserMobile userMobile = userMobileMapper.selectOne(queryWrapper);
             if (Objects.isNull(userMobile)) {
@@ -189,20 +195,24 @@ public class UserService extends ServiceImpl<UserMapper, User> {
             if (StringUtil.isNotEmpty(errorCountStr) && Integer.parseInt(errorCountStr) >= ERROR_COUNT_THRESHOLD) {
                 throw new DaMaiFrameException(BaseCode.EMAIL_ERROR_COUNT_TOO_MANY);
             }
-            LambdaQueryWrapper<UserEmail> queryWrapper = Wrappers.lambdaQuery(UserEmail.class).eq(UserEmail::getEmail,
-                    email);
-            UserEmail userEmail = userEmailMapper.selectOne(queryWrapper);
-            if (Objects.isNull(userEmail)) {
+            LambdaQueryWrapper<User> queryUserByEmail = Wrappers.lambdaQuery(User.class)
+                    .eq(User::getEmail, email)
+                    .eq(User::getStatus, 1);
+            User userByEmail = userMapper.selectOne(queryUserByEmail);
+            if (Objects.isNull(userByEmail)) {
                 redisCache.incrBy(RedisKeyBuild.createRedisKey(RedisKeyManage.LOGIN_USER_EMAIL_ERROR, email), 1);
                 redisCache.expire(RedisKeyBuild.createRedisKey(RedisKeyManage.LOGIN_USER_EMAIL_ERROR, email), 1,
                         TimeUnit.MINUTES);
                 throw new DaMaiFrameException(BaseCode.USER_EMAIL_NOT_EXIST);
             }
-            userId = userEmail.getUserId();
+            userId = userByEmail.getId();
         }
-        // 4. 校验密码
-        LambdaQueryWrapper<User> queryUserWrapper = Wrappers.lambdaQuery(User.class).eq(User::getId, userId)
+        LambdaQueryWrapper<User> queryUserWrapper = Wrappers.lambdaQuery(User.class)
+                .eq(User::getId, userId)
                 .eq(User::getPassword, password);
+        if (StringUtil.isNotEmpty(mobile)) {
+            queryUserWrapper.eq(User::getMobile, mobile);
+        }
         User user = userMapper.selectOne(queryUserWrapper);
         if (Objects.isNull(user)) {
             throw new DaMaiFrameException(BaseCode.NAME_PASSWORD_ERROR);
@@ -283,27 +293,63 @@ public class UserService extends ServiceImpl<UserMapper, User> {
         if (Objects.isNull(user)) {
             throw new DaMaiFrameException(BaseCode.USER_EMPTY);
         }
+        // 重复校验：新邮箱是否已被其他用户占用
+        LambdaQueryWrapper<User> duplicateCheck = Wrappers.lambdaQuery(User.class)
+                .eq(User::getEmail, userUpdateEmailDto.getEmail())
+                .ne(User::getId, user.getId())
+                .eq(User::getStatus, 1);
+        User otherUser = userMapper.selectOne(duplicateCheck);
+        if (Objects.nonNull(otherUser)) {
+            throw new DaMaiFrameException(BaseCode.USER_EXIST);
+        }
+
         User updateUser = new User();
         BeanUtil.copyProperties(userUpdateEmailDto, updateUser);
         updateUser.setEmailStatus(BusinessStatus.YES.getCode());
         userMapper.updateById(updateUser);
 
         String oldEmail = user.getEmail();
-        LambdaQueryWrapper<UserEmail> userEmailLambdaQueryWrapper = Wrappers.lambdaQuery(UserEmail.class)
-                .eq(UserEmail::getEmail, userUpdateEmailDto.getEmail());
-        UserEmail userEmail = userEmailMapper.selectOne(userEmailLambdaQueryWrapper);
-        if (Objects.isNull(userEmail)) {
-            userEmail = new UserEmail();
+        if (StringUtil.isNotEmpty(oldEmail)) {
+            UserEmail oldRow = userEmailMapper.selectOne(Wrappers.lambdaQuery(UserEmail.class)
+                    .eq(UserEmail::getUserId, user.getId())
+                    .eq(UserEmail::getEmail, oldEmail)
+                    .eq(UserEmail::getStatus, 1)
+                    .last("LIMIT 1"));
+            if (Objects.nonNull(oldRow)) {
+                LambdaUpdateWrapper<UserEmail> disableOldWrapper = Wrappers.lambdaUpdate(UserEmail.class)
+                        .eq(UserEmail::getId, oldRow.getId())
+                        .eq(UserEmail::getStatus, 1)
+                        .set(UserEmail::getStatus, 0);
+                userEmailMapper.update(new UserEmail(), disableOldWrapper);
+            }
+        } else {
+            LambdaUpdateWrapper<UserEmail> disableActivesWrapper = Wrappers.lambdaUpdate(UserEmail.class)
+                    .eq(UserEmail::getUserId, user.getId())
+                    .eq(UserEmail::getStatus, 1)
+                    .set(UserEmail::getStatus, 0);
+            userEmailMapper.update(new UserEmail(), disableActivesWrapper);
+        }
+
+        LambdaQueryWrapper<UserEmail> newEmailQuery = Wrappers.lambdaQuery(UserEmail.class)
+                .eq(UserEmail::getEmail, userUpdateEmailDto.getEmail())
+                .eq(UserEmail::getUserId, user.getId())
+                .last("LIMIT 1");
+        UserEmail existNewEmail = userEmailMapper.selectOne(newEmailQuery);
+        if (Objects.nonNull(existNewEmail)) {
+            Integer status = existNewEmail.getStatus();
+            if (Objects.nonNull(status) && status == 0) {
+                LambdaUpdateWrapper<UserEmail> activateWrapper = Wrappers.lambdaUpdate(UserEmail.class)
+                        .eq(UserEmail::getId, existNewEmail.getId())
+                        .set(UserEmail::getStatus, 1);
+                userEmailMapper.update(new UserEmail(), activateWrapper);
+            }
+        } else {
+            UserEmail userEmail = new UserEmail();
             userEmail.setId(uidGenerator.getUid());
             userEmail.setUserId(user.getId());
             userEmail.setEmail(userUpdateEmailDto.getEmail());
+            userEmail.setStatus(1);
             userEmailMapper.insert(userEmail);
-        } else {
-            LambdaUpdateWrapper<UserEmail> userEmailLambdaUpdateWrapper = Wrappers.lambdaUpdate(UserEmail.class)
-                    .eq(UserEmail::getEmail, oldEmail);
-            UserEmail updateUserEmail = new UserEmail();
-            updateUserEmail.setEmail(userUpdateEmailDto.getEmail());
-            userEmailMapper.update(updateUserEmail, userEmailLambdaUpdateWrapper);
         }
     }
 
@@ -313,25 +359,45 @@ public class UserService extends ServiceImpl<UserMapper, User> {
         if (Objects.isNull(user)) {
             throw new DaMaiFrameException(BaseCode.USER_EMPTY);
         }
-        String oldMobile = user.getMobile();
+        LambdaQueryWrapper<User> duplicateCheck = Wrappers.lambdaQuery(User.class)
+                .eq(User::getMobile, userUpdateMobileDto.getMobile())
+                .ne(User::getId, user.getId())
+                .eq(User::getStatus, 1);
+        User otherUser = userMapper.selectOne(duplicateCheck);
+        if (Objects.nonNull(otherUser)) {
+            throw new DaMaiFrameException(BaseCode.USER_EXIST);
+        }
+
         User updateUser = new User();
         BeanUtil.copyProperties(userUpdateMobileDto, updateUser);
         userMapper.updateById(updateUser);
-        LambdaQueryWrapper<UserMobile> userMobileLambdaQueryWrapper = Wrappers.lambdaQuery(UserMobile.class)
-                .eq(UserMobile::getMobile, userUpdateMobileDto.getMobile());
-        UserMobile userMobile = userMobileMapper.selectOne(userMobileLambdaQueryWrapper);
-        if (Objects.isNull(userMobile)) {
-            userMobile = new UserMobile();
+
+        LambdaUpdateWrapper<UserMobile> disableOldMobiles = Wrappers.lambdaUpdate(UserMobile.class)
+                .eq(UserMobile::getUserId, user.getId())
+                .eq(UserMobile::getStatus, 1)
+                .set(UserMobile::getStatus, 0);
+        userMobileMapper.update(new UserMobile(), disableOldMobiles);
+
+        LambdaQueryWrapper<UserMobile> newMobileQuery = Wrappers.lambdaQuery(UserMobile.class)
+                .eq(UserMobile::getMobile, userUpdateMobileDto.getMobile())
+                .eq(UserMobile::getUserId, user.getId())
+                .last("LIMIT 1");
+        UserMobile existNew = userMobileMapper.selectOne(newMobileQuery);
+        if (Objects.nonNull(existNew)) {
+            Integer status = existNew.getStatus();
+            if (Objects.nonNull(status) && status == 0) {
+                UserMobile activate = new UserMobile();
+                activate.setId(existNew.getId());
+                activate.setStatus(1);
+                userMobileMapper.updateById(activate);
+            }
+        } else {
+            UserMobile userMobile = new UserMobile();
             userMobile.setId(uidGenerator.getUid());
             userMobile.setUserId(user.getId());
             userMobile.setMobile(userUpdateMobileDto.getMobile());
+            userMobile.setStatus(1);
             userMobileMapper.insert(userMobile);
-        } else {
-            LambdaUpdateWrapper<UserMobile> userMobileLambdaUpdateWrapper = Wrappers.lambdaUpdate(UserMobile.class)
-                    .eq(UserMobile::getMobile, oldMobile);
-            UserMobile updateUserMobile = new UserMobile();
-            updateUserMobile.setMobile(userUpdateMobileDto.getMobile());
-            userMobileMapper.update(updateUserMobile, userMobileLambdaUpdateWrapper);
         }
     }
 
@@ -353,8 +419,10 @@ public class UserService extends ServiceImpl<UserMapper, User> {
     }
 
     public UserVo getByMobile(UserMobileDto userMobileDto) {
-        LambdaQueryWrapper<UserMobile> queryWrapper = Wrappers.lambdaQuery(UserMobile.class).eq(UserMobile::getMobile,
-                userMobileDto.getMobile());
+        LambdaQueryWrapper<UserMobile> queryWrapper = Wrappers.lambdaQuery(UserMobile.class)
+                .eq(UserMobile::getMobile, userMobileDto.getMobile())
+                .eq(UserMobile::getStatus, 1)
+                .last("LIMIT 1");
         UserMobile userMobile = userMobileMapper.selectOne(queryWrapper);
         if (Objects.isNull(userMobile)) {
             throw new DaMaiFrameException(BaseCode.USER_MOBILE_EMPTY);
@@ -447,6 +515,26 @@ public class UserService extends ServiceImpl<UserMapper, User> {
         return true;
     }
 
+    public Boolean sendEmailCode(com.damai.dto.SendEmailCodeDto sendEmailCodeDto) {
+        String email = sendEmailCodeDto.getEmail();
+        String type = sendEmailCodeDto.getType();
+        if (!type.equals("login") && !type.equals("register")) {
+            throw new DaMaiFrameException(BaseCode.SMS_CODE_TYPE_ERROR);
+        }
+        RedisKeyBuild limitKey = RedisKeyBuild.createRedisKey(RedisKeyManage.EMAIL_CODE_SEND_LIMIT, email + ":" + type);
+        String limitCount = redisCache.get(limitKey, String.class);
+        if (StringUtil.isNotEmpty(limitCount)) {
+            throw new DaMaiFrameException(BaseCode.EMAIL_CODE_SEND_FREQUENT);
+        }
+        String emailCode = String.valueOf((int) ((Math.random() * 9 + 1) * 100000));
+        RedisKeyBuild codeKey = RedisKeyBuild.createRedisKey(RedisKeyManage.EMAIL_CODE_LOGIN, email);
+        redisCache.set(codeKey, emailCode, 5, TimeUnit.MINUTES);
+        redisCache.set(limitKey, "1", 60, TimeUnit.SECONDS);
+        log.info("邮箱验证码生成成功 - 邮箱: {}, 验证码: {}", email, emailCode);
+        emailService.sendEmailCodeAsync(email, emailCode);
+        return true;
+    }
+
     /**
      * 短信验证码登录
      * 
@@ -474,21 +562,23 @@ public class UserService extends ServiceImpl<UserMapper, User> {
         // 2. 验证码正确,删除验证码
         redisCache.del(codeKey);
 
-        // 3. 查询用户是否存在
-        LambdaQueryWrapper<UserMobile> queryWrapper = Wrappers.lambdaQuery(UserMobile.class).eq(UserMobile::getMobile,
-                mobile);
-        UserMobile userMobile = userMobileMapper.selectOne(queryWrapper);
-
-        // 4. 检查用户是否存在，未注册则提示用户先注册
-        if (Objects.isNull(userMobile)) {
+        List<UserMobile> userMobileList = userMobileMapper.selectList(
+                Wrappers.lambdaQuery(UserMobile.class)
+                        .eq(UserMobile::getMobile, mobile)
+                        .eq(UserMobile::getStatus, 1)
+                        .orderByDesc(UserMobile::getId));
+        if (userMobileList == null || userMobileList.isEmpty()) {
             log.info("短信验证码登录失败,手机号未注册: {}", mobile);
             throw new DaMaiFrameException(BaseCode.USER_MOBILE_NOT_REGISTERED);
         }
+        UserMobile userMobile = userMobileList.get(0);
 
-        // 5. 用户已存在,直接登录
         User user = userMapper.selectById(userMobile.getUserId());
         if (Objects.isNull(user)) {
             throw new DaMaiFrameException(BaseCode.USER_EMPTY);
+        }
+        if (!Objects.equals(user.getMobile(), mobile)) {
+            throw new DaMaiFrameException(BaseCode.USER_MOBILE_NOT_REGISTERED);
         }
         log.info("短信验证码登录,用户已存在,手机号: {}, 用户ID: {}", mobile, user.getId());
 
@@ -500,6 +590,35 @@ public class UserService extends ServiceImpl<UserMapper, User> {
         userLoginVo.setUserId(user.getId());
         userLoginVo.setToken(createToken(user.getId(), getChannelDataByCode(code).getTokenSecret()));
 
+        return userLoginVo;
+    }
+
+    @Transactional(rollbackFor = Exception.class)
+    public UserLoginVo emailCodeLogin(com.damai.dto.UserEmailCodeLoginDto userEmailCodeLoginDto) {
+        String code = userEmailCodeLoginDto.getCode();
+        String email = userEmailCodeLoginDto.getEmail();
+        String emailCode = userEmailCodeLoginDto.getEmailCode();
+        RedisKeyBuild codeKey = RedisKeyBuild.createRedisKey(RedisKeyManage.EMAIL_CODE_LOGIN, email);
+        String storedCode = redisCache.get(codeKey, String.class);
+        if (StringUtil.isEmpty(storedCode)) {
+            throw new DaMaiFrameException(BaseCode.EMAIL_CODE_INVALID);
+        }
+        if (!storedCode.equals(emailCode)) {
+            log.warn("邮箱验证码校验失败 - 邮箱: {}, Redis中验证码: {}, 用户输入: {}", email, storedCode, emailCode);
+            throw new DaMaiFrameException(BaseCode.EMAIL_CODE_INVALID);
+        }
+        redisCache.del(codeKey);
+        LambdaQueryWrapper<User> queryUserByEmail = Wrappers.lambdaQuery(User.class)
+                .eq(User::getEmail, email)
+                .eq(User::getStatus, 1);
+        User user = userMapper.selectOne(queryUserByEmail);
+        if (Objects.isNull(user)) {
+            throw new DaMaiFrameException(BaseCode.USER_EMPTY);
+        }
+        redisCache.set(RedisKeyBuild.createRedisKey(RedisKeyManage.USER_LOGIN, code, user.getId()), user, tokenExpireTime, TimeUnit.MINUTES);
+        UserLoginVo userLoginVo = new UserLoginVo();
+        userLoginVo.setUserId(user.getId());
+        userLoginVo.setToken(createToken(user.getId(), getChannelDataByCode(code).getTokenSecret()));
         return userLoginVo;
     }
 }
