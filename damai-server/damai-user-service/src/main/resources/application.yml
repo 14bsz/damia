@@ -11,7 +11,7 @@ spring:
     allow-bean-definition-overriding: true
   mvc:
     pathmatch:
-      matching-strategy: ant_path_matcher
+      matching-strategy: ant-path-matcher
     servlet:
       load-on-startup: 1
     jackson:
@@ -96,6 +96,21 @@ jasypt:
   encryptor:
     password: bgtjkjl!%^sdc
     algorithm: PBEWithMD5AndDES
+# 短信服务配置
+sms:
+  spug:
+    # Spug推送模板ID
+    template-id: Eov6p8keXKjx9NO1
+    # 是否启用短信发送 (true-启用真实发送, false-仅日志打印)
+    enabled: true
+    # 模板变量名配置(根据Spug模板变量名进行调整)
+    code-variable: key2
+    name-variable: key1
+    name: 星耀票务平台
+    number-variable: key3
+    number: 1分钟
+    send-name: false
+    send-number: false
 always_verify_captcha: 1
 springdoc:
   swagger-ui:
@@ -122,3 +137,25 @@ knife4j:
     language: zh_cn
     enable-version: true
     enable-swagger-models: true
+
+# Authing 邮箱验证码登录配置
+authing:
+  # 用户池 ID
+  userpool-id: 6939755d2788bfda57790a41
+  # 用户池密钥
+  userpool-secret: 8ed7be3ff9949c54eef2477ab5fcb53c
+  # 应用 ID
+  app-id: 6939755e3ca3d98e94340d3b
+  # 应用地址
+  app-host: https://slwnmhv9lyxx-demo.authing.cn
+
+# 邮件SMTP配置
+email:
+  smtp:
+    enabled: false
+    host: smtp.163.com
+    port: 465
+    username: ""
+    password: ""
+    from-name: 票务平台
+    subject: 验证码登录
