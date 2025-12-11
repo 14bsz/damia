@@ -91,7 +91,13 @@ function getIsVaild() {
     //此处判断是否验证，来控制显示那种图标
     accountLists.value = accountList.map(item => {
       if (item.nameInfo == '邮箱验证') {
-        emailStatus == "0" ? item.nameInfoStyle = 'name-info-no' : item.nameInfoStyle = 'name-info-yes'
+        if (emailStatus == "0") {
+          item.nameInfoStyle = 'name-info-no'
+          item.explainInfo = '立即绑定'
+        } else {
+          item.nameInfoStyle = 'name-info-yes'
+          item.explainInfo = '更换'
+        }
       } else if (item.nameInfo == '实名认证') {
         relAuthenticationStatus == "0" ? item.nameInfoStyle = 'name-info-no' : item.nameInfoStyle = 'name-info-yes'
       }
