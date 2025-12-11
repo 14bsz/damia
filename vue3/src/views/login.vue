@@ -103,6 +103,55 @@
               </el-form>
             </el-tab-pane>
             
+            <el-tab-pane label="邮箱登录" name="third">
+              <el-form ref="emailLoginRef" :model="emailLoginForm" :rules="emailLoginRules" class="login-form" @submit.prevent="handleEmailLogin">
+                <div class="error-tips" v-if="isEmailTips">
+                  <WarningFilled style="width: 1em; height: 1em; margin-left: 8px;"/>
+                  {{ emailTipsContent }}</div>
+                <el-input v-model="emailLoginForm.email" placeholder="请输入邮箱" prop="email">
+                  <template #prepend>
+                    <el-icon :size="20">
+                      <Message/>
+                    </el-icon>
+                  </template>
+                </el-input>
+                <div class="sms-code-input">
+                  <el-input v-model="emailLoginForm.emailCode" placeholder="请输入验证码" prop="emailCode">
+                    <template #prepend>
+                      <el-icon :size="20">
+                        <Message/>
+                      </el-icon>
+                    </template>
+                  </el-input>
+                  <el-button 
+                      class="sms-code-btn" 
+                      :disabled="emailCountdown > 0"
+                      @click="handleSendEmailCode"
+                  >
+                    {{ emailCountdown > 0 ? `${emailCountdown}秒后重试` : '获取验证码' }}
+                  </el-button>
+                </div>
+                <el-button
+                    :loading="emailLoading"
+                    size="large"
+                    type="primary"
+                    style="width:100%;"
+                    class="btn"
+                    native-type="submit"
+                    @click.prevent="handleEmailLogin"
+                >
+                  <span v-if="!emailLoading">登 录</span>
+                  <span v-else>登 录 中...</span>
+                </el-button>
+                <div v-show="experienceAccountFlag != 1" v-if="register" class="register">
+                  <router-link class="link-type" :to="'/register'">立即注册</router-link>
+                </div>
+                <div v-show="experienceAccountFlag == 1" v-if="register" class="experienceAccount">
+                  <a class="link-type" @click="getExperienceAccount">点击获取体验账号</a>
+                </div>
+              </el-form>
+            </el-tab-pane>
+            
           </el-tabs>
         </div>
       </div>
@@ -142,7 +191,7 @@ import {isPhoneNumber, isEmailAddress} from '@/utils/index'
 import {ref, getCurrentInstance, inject} from 'vue'
 import useUserStore from '@/store/modules/user'
 import {useRouter} from 'vue-router'
-import {sendSmsCode, smsLogin} from '@/api/login'
+import {sendSmsCode, smsLogin, sendEmailCode, emailCodeLogin} from '@/api/login'
 import {ElMessage, ElMessageBox} from 'element-plus'
 import {setToken, setUserIdKey, setName} from '@/utils/auth'
 
@@ -202,6 +251,23 @@ const smsLoginRules = ref({
 
 
 
+// 邮箱验证码登录相关
+const emailLoading = ref(false);
+const isEmailTips = ref(false);
+const emailTipsContent = ref('');
+const emailCountdown = ref(0);
+let emailCountdownTimer = null;
+
+const emailLoginForm = ref({
+  email: '',
+  emailCode: '',
+  code: '0001'//pc网站
+})
+
+const emailLoginRules = ref({
+  email: [{required: true, message: '请输入邮箱', trigger: 'blur'}],
+  emailCode: [{required: true, message: '请输入验证码', trigger: 'blur'}]
+});
 const handleClick = (tab, event) => {
   console.log(tab, event)
 }
@@ -352,6 +418,83 @@ function handleSmsLogin() {
         })
         .finally(() => {
           smsLoading.value = false;
+        });
+    }
+  });
+}
+
+// 发送邮箱验证码
+function handleSendEmailCode() {
+  if (!emailLoginForm.value.email) {
+    isEmailTips.value = true;
+    emailTipsContent.value = '请输入邮箱';
+    return;
+  }
+  isEmailTips.value = false;
+  sendEmailCode(emailLoginForm.value.email, 'login').then(response => {
+    if (response.code == '0' || response.code == 0) {
+      ElMessage({
+        message: '验证码已发送,请注意查收',
+        type: 'success',
+      });
+      emailCountdown.value = 60;
+      emailCountdownTimer = setInterval(() => {
+        emailCountdown.value--;
+        if (emailCountdown.value <= 0) {
+          clearInterval(emailCountdownTimer);
+          emailCountdownTimer = null;
+        }
+      }, 1000);
+    }
+  }).catch((error) => {
+    isEmailTips.value = true;
+    emailTipsContent.value = error.message || '验证码发送失败';
+  });
+}
+
+// 邮箱验证码登录
+function handleEmailLogin() {
+  proxy.$refs.emailLoginRef.validate(valid => {
+    if (valid) {
+      if (!emailLoginForm.value.email) {
+        isEmailTips.value = true;
+        emailTipsContent.value = '请输入邮箱';
+        return;
+      }
+      if (!emailLoginForm.value.emailCode) {
+        isEmailTips.value = true;
+        emailTipsContent.value = '请输入验证码';
+        return;
+      }
+      isEmailTips.value = false;
+      emailLoading.value = true;
+      emailCodeLogin(emailLoginForm.value.email, emailLoginForm.value.emailCode, emailLoginForm.value.code)
+        .then(response => {
+          if (response.code == '0' || response.code == 0) {
+            const userInfo = response.data;
+            setToken(userInfo.token);
+            setUserIdKey(userInfo.userId);
+            setName(emailLoginForm.value.email);
+            userStore.token = userInfo.token;
+            userStore.userId = userInfo.userId;
+            ElMessage({
+              message: '登录成功',
+              type: 'success',
+            });
+            router.push({path: "/"});
+          } else {
+            const errMsg = response.message || '登录失败';
+            isEmailTips.value = true;
+            emailTipsContent.value = errMsg;
+          }
+        })
+        .catch((error) => {
+          const errMsg = error?.response?.data?.message || error.message || '登录失败';
+          isEmailTips.value = true;
+          emailTipsContent.value = errMsg;
+        })
+        .finally(() => {
+          emailLoading.value = false;
         });
     }
   });

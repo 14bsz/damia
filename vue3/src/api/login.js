@@ -98,3 +98,40 @@ export function smsLogin(mobile, smsCode, code) {
         data: data
     })
 }
+
+/**
+ * 发送邮箱验证码
+ * @param email 邮箱地址
+ * @returns {*}
+ */
+export function sendEmailCode(email, type = 'login') {
+    const data = {
+        email,
+        type
+    }
+    return request({
+        url: '/damai/user/api/auth/sendEmailCode',
+        method: 'post',
+        data: data
+    })
+}
+
+/**
+ * 邮箱验证码登录
+ * @param email 邮箱地址
+ * @param emailCode 邮箱验证码
+ * @param code 渠道code 0001(pc网站)
+ * @returns {*}
+ */
+export function emailCodeLogin(email, emailCode, code) {
+    const data = {
+        email,
+        emailCode,
+        code
+    }
+    return request({
+        url: '/damai/user/api/auth/loginByEmailCode',
+        method: 'post',
+        data: data
+    })
+}
