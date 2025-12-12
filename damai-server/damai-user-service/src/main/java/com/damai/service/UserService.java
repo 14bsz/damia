@@ -282,6 +282,14 @@ public class UserService extends ServiceImpl<UserMapper, User> {
         if (Objects.isNull(user)) {
             throw new DaMaiFrameException(BaseCode.USER_EMPTY);
         }
+        if (StringUtil.isNotEmpty(userUpdatePasswordDto.getOldPassword()) && 
+            !user.getPassword().equals(userUpdatePasswordDto.getOldPassword())) {
+             throw new DaMaiFrameException(BaseCode.NAME_PASSWORD_ERROR);
+        }
+        if (StringUtil.isNotEmpty(userUpdatePasswordDto.getPassword()) &&
+            userUpdatePasswordDto.getPassword().equals(userUpdatePasswordDto.getOldPassword())) {
+            throw new DaMaiFrameException(BaseCode.PARAMETER_ERROR.getCode(), "新密码不能与旧密码一致");
+        }
         User updateUser = new User();
         BeanUtil.copyProperties(userUpdatePasswordDto, updateUser);
         userMapper.updateById(updateUser);
