@@ -208,11 +208,15 @@ public class ProgramService extends ServiceImpl<ProgramMapper, Program> {
     public PageVo<ProgramListVo> search(ProgramSearchDto programSearchDto) {
         // 将入参的参数进行具体的组装
         setQueryTime(programSearchDto);
-        return programEs.search(programSearchDto);
+        PageVo<ProgramListVo> pageVo = programEs.search(programSearchDto);
+        if (CollectionUtil.isNotEmpty(pageVo.getList())) {
+            return pageVo;
+        }
+        return dbSearch(programSearchDto);
     }
 
     /**
-     * 查询主页信息
+     * 查询主页信息s
      * 
      * @param programListDto 查询节目数据的入参
      * @return 执行后的结果
@@ -360,6 +364,48 @@ public class ProgramService extends ServiceImpl<ProgramMapper, Program> {
     public PageVo<ProgramListVo> dbSelectPage(ProgramPageListDto programPageListDto) {
         IPage<ProgramJoinShowTime> iPage = programMapper.selectPage(PageUtil.getPageParams(programPageListDto),
                 programPageListDto);
+        if (CollectionUtil.isEmpty(iPage.getRecords())) {
+            return new PageVo<>(iPage.getCurrent(), iPage.getSize(), iPage.getTotal(), new ArrayList<>());
+        }
+        Set<Long> programCategoryIdList = iPage.getRecords().stream().map(Program::getProgramCategoryId)
+                .collect(Collectors.toSet());
+        Map<Long, String> programCategoryMap = selectProgramCategoryMap(programCategoryIdList);
+
+        List<Long> programIdList = iPage.getRecords().stream().map(Program::getId).collect(Collectors.toList());
+        Map<Long, TicketCategoryAggregate> ticketCategorieMap = selectTicketCategorieMap(programIdList);
+
+        Map<Long, String> tempAreaMap = new HashMap<>(64);
+        AreaSelectDto areaSelectDto = new AreaSelectDto();
+        areaSelectDto
+                .setIdList(iPage.getRecords().stream().map(Program::getAreaId).distinct().collect(Collectors.toList()));
+        ApiResponse<List<AreaVo>> areaResponse = baseDataClient.selectByIdList(areaSelectDto);
+        if (Objects.equals(areaResponse.getCode(), ApiResponse.ok().getCode())) {
+            if (CollectionUtil.isNotEmpty(areaResponse.getData())) {
+                tempAreaMap = areaResponse.getData().stream()
+                        .collect(Collectors.toMap(AreaVo::getId, AreaVo::getName, (v1, v2) -> v2));
+            }
+        } else {
+            log.error("base-data selectByIdList rpc error areaResponse:{}", JSON.toJSONString(areaResponse));
+        }
+        Map<Long, String> areaMap = tempAreaMap;
+
+        return PageUtil.convertPage(iPage, programJoinShowTime -> {
+            ProgramListVo programListVo = new ProgramListVo();
+            BeanUtil.copyProperties(programJoinShowTime, programListVo);
+
+            programListVo.setAreaName(areaMap.get(programJoinShowTime.getAreaId()));
+            programListVo.setProgramCategoryName(programCategoryMap.get(programJoinShowTime.getProgramCategoryId()));
+            programListVo.setMinPrice(Optional.ofNullable(ticketCategorieMap.get(programJoinShowTime.getId()))
+                    .map(TicketCategoryAggregate::getMinPrice).orElse(null));
+            programListVo.setMaxPrice(Optional.ofNullable(ticketCategorieMap.get(programJoinShowTime.getId()))
+                    .map(TicketCategoryAggregate::getMaxPrice).orElse(null));
+            return programListVo;
+        });
+    }
+
+    public PageVo<ProgramListVo> dbSearch(ProgramSearchDto programSearchDto) {
+        IPage<ProgramJoinShowTime> iPage = programMapper.searchPage(PageUtil.getPageParams(programSearchDto),
+                programSearchDto);
         if (CollectionUtil.isEmpty(iPage.getRecords())) {
             return new PageVo<>(iPage.getCurrent(), iPage.getSize(), iPage.getTotal(), new ArrayList<>());
         }
