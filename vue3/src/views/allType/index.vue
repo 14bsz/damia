@@ -311,11 +311,11 @@
 
 <script setup>
 //引入reactive
-import {getCurrentInstance, onMounted, reactive, ref} from 'vue'
+import {getCurrentInstance, onMounted, reactive, ref, watch} from 'vue'
 import {getCurrentCity, getOtherCity} from '@/api/area'
 import {getcategoryType, getMainCategory} from "@/api/index";
 import {getCurrentDate, useMitt,formatDateWithWeekday} from "@/utils/index";
-import {getChildrenType, getProgramPageType} from "@/api/allType";
+import {getChildrenType, getProgramPageType, getProgramSearch} from "@/api/allType";
 import {getProgramRecommendList} from "@/api/recommendlist.js"
 //引入路由器
 import {useRouter} from 'vue-router'
@@ -602,15 +602,37 @@ onMounted(() => {
   pageParams.value.areaId = currentCity.value
   pageParams.value.timeType = timeType.value
   pageParams.value.parentProgramCategoryId = proxy.$route.query.id
-  getList()
-  getRecommendList()
+  const q = proxy?.$route?.query?.q
+  if (q && String(q).trim().length) {
+    doSearchFromRoute(String(q))
+    getRecommendList()
+  } else {
+    getList()
+    getRecommendList()
+  }
   emitter.on('searchList', (data) => {
     cardArr.value = data.list
     total.value = Number(data.totalSize)
     titleIsShow.value = false
     goods.value = Number(data.totalSize) || (Array.isArray(data.list) ? data.list.length : 0)
-
   })
+})
+
+function doSearchFromRoute(content) {
+  const params = { content, pageNumber: 1, pageSize: 10, timeType: 0 }
+  getProgramSearch(params).then(response => {
+    const data = response.data || { list: [], totalSize: 0 }
+    cardArr.value = data.list
+    total.value = Number(data.totalSize)
+    titleIsShow.value = false
+    goods.value = Number(data.totalSize) || (Array.isArray(data.list) ? data.list.length : 0)
+  })
+}
+
+watch(() => proxy.$route.query.q, (newQ) => {
+  if (typeof newQ === 'string' && newQ.trim().length) {
+    doSearchFromRoute(newQ.trim())
+  }
 })
 
 function handleClickTab(tab, event) {
