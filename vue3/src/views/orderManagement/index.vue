@@ -5,67 +5,70 @@
   <div class="section">
     <MenuSideBar class="sidebarMenu" activeIndex="5"></MenuSideBar>
     <div class="right-section">
-      <table>
-        <thead>
-        <tr>
-          <th style="width: 390px">项目名称</th>
-          <th style="width: 144px">票品张数</th>
-          <th style="width: 130px">订单金额</th>
-          <th style="width: 130px">交易状态</th>
-          <th style="width: 210px">交易操作</th>
-        </tr>
-        </thead>
-      </table>
+      <div class="list-header">
+        <div class="col item">项目名称</div>
+        <div class="col count">票品张数</div>
+        <div class="col price">订单金额</div>
+        <div class="col status">交易状态</div>
+        <div class="col action">交易操作</div>
+      </div>
+      
       <div class="orderBox" v-for="(order, index) in orderList" :key="index">
-        <div class="num">订单号: {{ order.orderNumber }}</div>
-        <ul>
-          <li>
-            <img :src="order.programItemPicture" alt="">
+        <div class="num">
+          <span class="label">订单号:</span> 
+          <span class="val">{{ order.orderNumber }}</span>
+        </div>
+        <div class="order-content">
+          <div class="col item">
+            <img :src="order.programItemPicture" alt="" class="poster">
             <div class="project">
-              <div class="title">{{ order.programTitle }}</div>
-              <div class="content">演出场次: {{ order.programShowTime }}</div>
-              <div class="content">演出场馆: {{ order.programPlace }}</div>
+              <div class="title" :title="order.programTitle">{{ order.programTitle }}</div>
+              <div class="info-row"><el-icon><Clock /></el-icon> {{ order.programShowTime }}</div>
+              <div class="info-row"><el-icon><Location /></el-icon> {{ order.programPlace }}</div>
             </div>
-          </li>
-          <li>{{ order.ticketCount }}</li>
-          <li>
-            <div class="price">￥ {{ order.orderPrice }}</div>
-            <div class="money">(含运费￥0.00)</div>
-          </li>
-          <li>
-            <div class="orderStatus" :class="statusClassName(order.orderStatus)">{{ getOrderStatus(order.orderStatus) }}</div>
-            <div class="countdown" v-if="order.orderStatus == 1 && remainText(order.orderNumber)">剩余支付时间：{{ remainText(order.orderNumber) }}</div>
-          </li>
-          <li>
-            <div class="btn-col">
+          </div>
+          <div class="col count">{{ order.ticketCount }}</div>
+          <div class="col price">
+            <div class="amount">￥{{ order.orderPrice }}</div>
+            <div class="shipping">(含运费￥0.00)</div>
+          </div>
+          <div class="col status">
+            <div class="status-badge" :class="statusClassName(order.orderStatus)">{{ getOrderStatus(order.orderStatus) }}</div>
+            <div class="countdown" v-if="order.orderStatus == 1 && remainText(order.orderNumber)">
+               剩余 {{ remainText(order.orderNumber) }}
+            </div>
+          </div>
+          <div class="col action">
               <template v-if="order.orderStatus == 1 && remainText(order.orderNumber)">
-                <button class="order-btn pay" aria-label="支付订单" @click="goPay(order.orderNumber)">支付</button>
-                <button class="order-btn cancel" aria-label="取消订单" @click="openCancelDialog(order.orderNumber)">
-                  取消订单
-                </button>
+                <el-button type="primary" class="action-btn" @click="goPay(order.orderNumber)">立即支付</el-button>
+                <el-button link type="info" class="cancel-btn" @click="openCancelDialog(order.orderNumber)">取消订单</el-button>
               </template>
               <template v-else>
-                <router-link
-                    class="link-detail"
-                    :to="{name:'orderDetail', params:{orderNumber:order.orderNumber}}">
+                <el-button link type="primary" class="detail-btn" @click="router.push({name:'orderDetail', params:{orderNumber:order.orderNumber}})">
                   订单详情
-                </router-link>
+                </el-button>
               </template>
-            </div>
-          </li>
-        </ul>
+          </div>
+        </div>
       </div>
 
       <el-dialog
           v-model="cancelDialogVisible"
-          aria-label="确认取消订单"
+          title="提示"
+          width="420px"
           class="dm-cancel-dialog"
+          center
+          :show-close="false"
       >
-        <div class="content">您确定要取消此订单吗？</div>
+        <div class="dialog-content">
+          <el-icon class="warn-icon"><WarningFilled /></el-icon>
+          <div class="warn-text">确定要取消此订单吗？</div>
+          <div class="sub-text">取消后将无法恢复，需要重新下单。</div>
+        </div>
         <template #footer>
           <div class="dialog-footer">
-            <el-button class="dm-secondary" aria-label="取消操作" @click="closeCancelDialog">取消</el-button>
-            <el-button class="dm-primary" aria-label="确认取消订单" @click="confirmCancel">确认</el-button>
+            <el-button class="dialog-btn cancel" @click="closeCancelDialog">暂不取消</el-button>
+            <el-button class="dialog-btn confirm" type="primary" @click="confirmCancel">确认取消</el-button>
           </div>
         </template>
       </el-dialog>
@@ -87,9 +90,10 @@ import {cancelOrderApi, getOrderListApi, payCheckApi} from '@/api/order.js'
 import {ElMessage} from "element-plus";
 //获取用户信息
 import useUserStore from "../../store/modules/user";
+import { Clock, Location, WarningFilled } from '@element-plus/icons-vue'
 
 //订单列表数据
-const orderList = ref(0)
+const orderList = ref([])
 const useUser = useUserStore()
 //订单列表入参
 const orderListParams = reactive({
@@ -347,299 +351,318 @@ onMounted(() => {
 .section {
   width: 1200px;
   margin: 15px auto 0;
+  display: flex;
+  gap: 20px;
+  align-items: flex-start;
 
   .sidebarMenu {
-    //width: 201px;
-    float: left;
+    width: 200px;
+    flex-shrink: 0;
   }
 
   .right-section {
-    width: 950px;
-    height: 646px;
-    margin-left: 10px;
-    float: right;
-    overflow-y: scroll;
+    flex-grow: 1;
+    min-height: 600px;
+    
+    // Header
+    .list-header {
+      display: flex;
+      background: #f5f7fa;
+      padding: 12px 20px;
+      border: 1px solid #ebeef5;
+      border-radius: 4px 4px 0 0;
+      font-size: 14px;
+      color: #606266;
+      font-weight: 600;
 
-    table {
-      width: 940px;
-      -webkit-box-sizing: border-box;
-      box-sizing: border-box;
-      border-left: 1px solid transparent;
-      border-right: 1px solid transparent;
-      background: #f7f7f7;
-      color: #333;
-      padding: 12px 0 12px 20px;
-      height: 40px;
-      line-height: 16px;
-      font-size: 12px;
-      margin-bottom: 20px;
-
-
+      .col {
+        &.item { flex: 1; padding-right: 20px;}
+        &.count { width: 100px; text-align: center; }
+        &.price { width: 140px; text-align: center; }
+        &.status { width: 140px; text-align: center; }
+        &.action { width: 160px; text-align: center; }
+      }
     }
 
+    // Order Item
     .orderBox {
-      border: 1px solid #ebebeb;
-      width: 100%;
-      height: 150px;
-      margin-bottom: 20px;
+      margin-top: 15px;
+      border: 1px solid #ebeef5;
+      border-radius: 4px;
+      transition: all 0.3s;
+      background: #fff;
+
+      &:hover {
+        box-shadow: 0 4px 16px rgba(0,0,0,0.08);
+        border-color: #e4e7ed;
+      }
 
       .num {
+        padding: 10px 20px;
+        background: #fbfbfb;
+        border-bottom: 1px solid #ebeef5;
         font-size: 12px;
-        padding: 14px 0 14px 20px;
-        background: #f7f7f7;
-        color: #000;
-        border-bottom: 1px solid #ebebeb;
+        color: #909399;
+        display: flex;
+        gap: 10px;
+        
+        .val { color: #303133; font-weight: 500;}
       }
 
-      ul {
-        margin: 0;
-        padding: 0;
-        list-style: none;
+      .order-content {
+        display: flex;
+        padding: 20px;
+        align-items: center;
 
-        li {
-          display: flex;
-          flex-direction: row;
-          float: left;
-          font-size: 12px;
-          background: #ffffff;
-          height: 100px;
-        }
-
-        li:first-child {
-          width: 390px;
-          padding-left: 20px;
-          padding-top: 13px;
-          border-right: 1px solid #ebebeb;
-
-          img {
-            width: 62px;
-            height: 80px;
-            float: left;
-          }
-
-          .project {
-            width: 293px;
-            padding-left: 18px;
-
-            .title {
-              width: 210px;
-              color: #4a4a4a;
-              margin-bottom: 4px;
-              display: inline-block;
-              white-space: nowrap;
-              overflow: hidden;
-              text-overflow: ellipsis;
-
-            }
-
-            .content {
-              color: #9b9b9b;
-              margin-bottom: 2px;
-            }
-
-          }
-
-        }
-
-        li:nth-child(2) {
-          width: 100px;
-          border-right: 1px solid #ebebeb;
-          text-align: center;
-          padding: 48px;
-        }
-
-        li:nth-child(3) {
-          width: 133px;
-          display: block;
-          padding-top: 32px;
-          border-right: 1px solid #ebebeb;
-          text-align: center;
-
-          .price {
-            width: 100%;
-          }
-
-          .money {
-            width: 100%;
-          }
-        }
-
-        li:nth-child(4) {
-          width: 133px;
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-          justify-content: center;
-          gap: 8px;
-          border-right: 1px solid #ebebeb;
-          text-align: center;
-
-          .orderStatus {
-            width: auto;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            padding: 6px 10px;
-            border-radius: 999px;
-            font-size: 12px;
-            font-weight: 600;
-            border: 1px solid #e6e6e6;
-            background: #f7f8fa;
-            color: #333;
-          }
-
-          .orderStatus.pending{
-            color: #FF2D55;
-            background: #FFF5F7;
-            border-color: #FFD9E2;
-          }
-          .orderStatus.paid{
-            color: #389e0d;
-            background: #f6ffed;
-            border-color: #b7eb8f;
-          }
-          .orderStatus.closed,
-          .orderStatus.canceled{
-            color: #595959;
-            background: #f5f5f5;
-            border-color: #d9d9d9;
-          }
-
-          .countdown{
-            margin-top: 6px;
-            font-size: 12px;
-            color: #FF2D55;
-            background: #FFF5F7;
-            border: 1px solid #FFD9E2;
-            border-radius: 999px;
-            padding: 4px 8px;
-            display: inline-block;
-          }
-
-        }
-
-        li:nth-child(5) {
-          width: 168px;
-          display: flex;
-          align-items: center; // 水平居中
-          justify-content: center; // 垂直居中
-          .btn-col {
+        .col {
+          &.item {
+            flex: 1;
             display: flex;
-            flex-direction: column; // 上下排列
-            gap: 10px; // 按钮间距
+            gap: 15px;
+            padding-right: 20px;
+            
+            .poster {
+              width: 80px;
+              height: 108px;
+              object-fit: cover;
+              border-radius: 4px;
+              border: 1px solid #f2f2f2;
+            }
+
+            .project {
+              flex: 1;
+              display: flex;
+              flex-direction: column;
+              gap: 8px;
+              justify-content: flex-start;
+              overflow: hidden;
+
+              .title {
+                font-size: 16px;
+                color: #303133;
+                font-weight: 500;
+                line-height: 1.4;
+                display: -webkit-box;
+                -webkit-line-clamp: 2;
+                -webkit-box-orient: vertical;
+                overflow: hidden;
+                margin-bottom: 4px;
+              }
+
+              .info-row {
+                font-size: 13px;
+                color: #909399;
+                display: flex;
+                align-items: center;
+                gap: 5px;
+                line-height: 1.2;
+              }
+            }
           }
 
-          .order-btn {
-            width: 98px; // 同宽
-            height: 30px; // 同高
-            line-height: 1;
+          &.count {
+            width: 100px;
             text-align: center;
             font-size: 14px;
-            border-radius: 20px;
-            border: none;
-            cursor: pointer;
+            color: #606266;
+          }
 
-            &.pay {
-              background-color: #FF2D55;
-              color: #fff;
+          &.price {
+            width: 140px;
+            text-align: center;
+            
+            .amount {
+              font-size: 16px;
+              color: #FF2D55;
+              font-weight: 600;
+            }
+            
+            .shipping {
+              font-size: 12px;
+              color: #909399;
+              margin-top: 4px;
+            }
+          }
+
+          &.status {
+            width: 140px;
+            text-align: center;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 8px;
+
+            .status-badge {
+               display: inline-flex;
+               align-items: center;
+               justify-content: center;
+               padding: 6px 14px;
+               border-radius: 14px;
+               font-size: 13px;
+               font-weight: 500;
+               background: #f4f4f5;
+               color: #909399;
+               
+               &.pending {
+                 color: #FF2D55;
+                 background: #FFF5F7;
+               }
+               &.paid {
+                 color: #67c23a;
+                 background: #f0f9eb;
+               }
+               &.closed {
+                 color: #909399;
+                 background: #f4f4f5;
+               }
+               &.canceled {
+                 color: #909399;
+                 background: #f4f4f5;
+                 text-decoration: line-through;
+               }
             }
 
-            &.cancel {
-              background-color: #fff;
+            .countdown {
+              font-size: 12px;
               color: #FF2D55;
-              border: 1px solid #FF2D55;
+            }
+          }
+
+          &.action {
+            width: 160px;
+            text-align: center;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            align-items: center;
+            justify-content: center;
+
+            .detail-btn {
+              font-size: 14px;
+              padding: 6px 12px;
+            }
+            
+            .action-btn {
+              width: 96px;
+              height: 32px;
+              border-radius: 16px;
+              font-size: 13px;
+              font-weight: 500;
+              background: linear-gradient(90deg, #FF4B8B 0%, #FF2D55 100%);
+              border: none;
+              color: #fff;
+              transition: all 0.3s;
+              
+              &:hover {
+                background: linear-gradient(90deg, #ff6a9e 0%, #ff4f71 100%);
+                box-shadow: 0 4px 12px rgba(255, 45, 85, 0.3);
+                transform: translateY(-1px);
+              }
+            }
+
+            .cancel-btn {
+              font-size: 13px;
+              color: #909399;
+              margin-left: 0 !important;
+              height: auto;
+              padding: 4px 0;
+              
+              &:hover {
+                color: #606266;
+                background-color: transparent;
+              }
             }
           }
         }
       }
     }
-
-
   }
-
 }
 
-.foot {
-
-  margin-top: 676px;
-}
-
-:deep(.el-input__wrapper) {
-  flex-grow: 0.3
-}
-
-.link {
-  text-decoration: none; /* 去除下划线 */
-}
-
-.fade-enter-active, .fade-leave-active {
-  transition: all .2s ease;
-}
-
-.fade-enter-from, .fade-leave-to {
-  opacity: 0;
-  transform: translateY(-4px);
-}
-
+// Dialog Customization
 :deep(.dm-cancel-dialog) {
-  width: min(560px, 92vw);
-  background-color: #fff;
   border-radius: 16px;
-  box-shadow: 0 12px 28px rgba(0, 0, 0, .12);
-  animation: dmDialogEnter .22s ease;
-}
-
-:deep(.dm-cancel-dialog .el-dialog__header) {
-  padding-bottom: 0;
-}
-
-:deep(.dm-cancel-dialog .el-dialog__body) {
-  padding-top: 6px;
-}
-
-:deep(.dm-cancel-dialog .content) {
-  color: #111;
-  font-size: 16px;
-  line-height: 24px;
-  text-align: center;
+  overflow: hidden;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+  
+  .el-dialog__header {
+    padding: 24px 0 0;
+    margin: 0;
+    .el-dialog__title {
+      font-weight: 600;
+      color: #303133;
+      font-size: 20px;
+    }
+  }
+  
+  .el-dialog__body {
+    padding: 24px 30px 30px;
+    
+    .dialog-content {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+      
+      .warn-icon {
+        font-size: 56px;
+        color: #ff9900;
+        margin-bottom: 20px;
+      }
+      
+      .warn-text {
+        font-size: 18px;
+        color: #303133;
+        font-weight: 500;
+        margin-bottom: 10px;
+      }
+      
+      .sub-text {
+        font-size: 14px;
+        color: #909399;
+        line-height: 1.6;
+      }
+    }
+  }
+  
+  .el-dialog__footer {
+    padding: 0 30px 30px;
+    background: #fff;
+    border: none;
+  }
 }
 
 .dialog-footer {
   display: flex;
-  justify-content: center;
-  gap: 12px;
-}
-
-.dm-primary {
-  background: #fff;
-  border: 1px solid #e5e7eb;
-  color: rgba(255, 55, 29, 0.85);
-}
-
-.dm-secondary {
-  background: #fff;
-  border: 1px solid #e5e7eb;
-  color: #111;
-}
-
-.link-detail {
-  color: #666;
-  font-size: 14px;
-  text-decoration: underline;
-  transition: color .2s;
-  &:hover { color: rgba(255,55,29,.85); }
-}
-
-@keyframes dmDialogEnter {
-  0% {
-    opacity: 0;
-    transform: translateY(-6px);
-  }
-  100% {
-    opacity: 1;
-    transform: translateY(0);
+  justify-content: space-between;
+  gap: 16px;
+  
+  .dialog-btn {
+    flex: 1;
+    height: 42px;
+    border-radius: 21px;
+    font-size: 15px;
+    margin: 0;
+    
+    &.cancel {
+      background: #f5f7fa;
+      border: none;
+      color: #606266;
+      &:hover {
+        background: #e4e7ed;
+        color: #303133;
+      }
+    }
+    
+    &.confirm {
+      background: linear-gradient(90deg, #FF4B8B 0%, #FF2D55 100%);
+      border: none;
+      &:hover {
+        background: linear-gradient(90deg, #ff6a9e 0%, #ff4f71 100%);
+        box-shadow: 0 4px 12px rgba(255, 45, 85, 0.2);
+        transform: translateY(-1px);
+      }
+    }
   }
 }
-
-
 </style>
