@@ -81,7 +81,13 @@ const props = defineProps({
 }
 
 :deep(.menu_border) {
-  border: 1px solid #dcdfe6;
+  border: 1px solid #ebeef5;
+  border-top: none;
+  border-radius: 0 0 8px 8px;
+  box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.05);
+  background: #fff;
+  overflow: hidden;
+  min-height: 700px;
 }
 
 :deep(.el-menu) {
@@ -89,8 +95,10 @@ const props = defineProps({
 }
 
 :deep(.el-sub-menu .el-menu-item) {
-  height: 32px;
-  line-height: 32px;
+  height: 50px;
+  line-height: 50px;
+  font-size: 15px;
+  margin: 4px 0;
 }
 
 :deep(.el-sub-menu .el-menu-item.is-active) {
@@ -99,26 +107,27 @@ const props = defineProps({
 
 :deep(.el-sub-menu .el-menu-item:hover),
 :deep(.el-sub-menu .el-menu-item.is-active) {
-  border-left: 2px solid rgba(255, 55, 29, 0.85);
-  background: #fafafa url(//assets.damai.cn/damai_v2/passport/images/i.png) no-repeat scroll 183px 13px;
-  height: 32px;
-  margin-left: -1px;
+  border-left: 4px solid #FF2D55;
+  background: #fff5f7 url(//assets.damai.cn/damai_v2/passport/images/i.png) no-repeat scroll 170px center;
+  height: 50px;
+  margin-left: 0;
   position: relative;
   padding-left: 32px;
   text-decoration: none;
-  color: #303133;
+  color: #FF2D55;
+  font-weight: 600;
 }
 
 :deep(.el-menu .el-sub-menu .el-sub-menu__title) {
-  background: url(//assets.damai.cn/damai_v2/passport/images/side-h3.png) repeat-x;
-  //border-top: 1px solid #efefef;
-  border-bottom: 1px solid #efefef;
-  height: 30px;
-  line-height: 30px;
+  background: #fafafa;
+  border-bottom: 1px solid #f0f0f0;
+  height: 45px;
+  line-height: 45px;
   padding-left: 20px;
   font-family: "Microsoft YaHei";
   color: #333;
   font-weight: 700;
+  font-size: 16px;
 }
 
 /* 隐藏Element Plus侧边菜单展开/折叠箭头 */
@@ -131,19 +140,18 @@ const props = defineProps({
 }
 
 .mb-2 {
-  background: #FF2D55 no-repeat;
-  width: 205px;
-  height: 33px;
-  position: relative;
-  left: -3px;
-  padding-left: 11px;
-  line-height: 30px;
+  background: linear-gradient(90deg, #FF2D55 0%, #ff6b88 100%);
+  width: 100%;
+  height: 40px;
+  line-height: 40px;
+  padding-left: 20px;
+  box-sizing: border-box;
   font-family: "Microsoft YaHei";
-  font-size: 14px;
+  font-size: 15px;
   color: #fff;
   font-weight: 700;
-  margin-bottom: -3px;
-  margin-top: 0px;
+  border-radius: 8px 8px 0 0;
+  margin: 0;
 }
 
 :deep(.el-sub-menu .el-menu-item a){
