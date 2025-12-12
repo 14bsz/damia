@@ -8,64 +8,64 @@
       <div class="right-section">
         <div class="breadcrumb"><span>常用购票人管理</span></div>
         <div class="right-tab">
-          <el-button class="addUser" @click="addTicketUser">新增购票人</el-button>
-          <el-table :data="ticketUserListData" v-if="isShow" style="width: 100%" border>
-            <el-table-column  type="index"  label="序号" width="100px"   align="center"/>
-            <el-table-column prop="relName" label="姓名"    align="center"/>
-            <el-table-column prop="index" label="证件类型"  align="center">
-              <template #default="scope">
-                {{ getIdTypeName(scope.row.idType)}}
-              </template>
-            </el-table-column>
-            <el-table-column prop="idNumber" label="证件号"   align="center" />
-            <el-table-column prop="index" label="操作"   align="center">
-              <template #default="scope">
-                <el-button link type="primary" icon="Delete" @click="delTicketUser(scope.row.id)">删除</el-button>
-              </template>
+          <div class="action-bar" v-if="isShow">
+             <el-button type="primary" class="add-btn" @click="addTicketUser">
+               <el-icon><Plus /></el-icon>新增购票人
+             </el-button>
+          </div>
+          <div class="table-container" v-if="isShow">
+            <el-table :data="ticketUserListData" style="width: 100%" border :header-cell-style="{background:'#f5f7fa',color:'#606266'}">
+              <el-table-column  type="index"  label="序号" width="80"   align="center"/>
+              <el-table-column prop="relName" label="姓名"    align="center"/>
+              <el-table-column prop="index" label="证件类型"  align="center">
+                <template #default="scope">
+                  {{ getIdTypeName(scope.row.idType)}}
+                </template>
+              </el-table-column>
+              <el-table-column prop="idNumber" label="证件号"   align="center" />
+              <el-table-column prop="index" label="操作"   align="center" width="120">
+                <template #default="scope">
+                  <el-button link type="danger" icon="Delete" @click="delTicketUser(scope.row.id)">删除</el-button>
+                </template>
+              </el-table-column>
+            </el-table>
+          </div>
 
-            </el-table-column>
-
-          </el-table>
           <div class="addTicketUserInfo"  v-if="!isShow">
-            <div class="title">新增购票人信息</div>
-            <div class="line"></div>
-            <el-form ref="ticketRef" :model="formTicket" :rules="formTicketRules" class="ticketForm" label-width="100px" >
-              <el-col :span="24">
-                <el-form-item label="姓名:"  prop="relName" >
-                  <el-input
-                      v-model="formTicket.relName"
-                      type="text"
-                      placeholder="请填填写姓名"
-                  > </el-input>
-                </el-form-item>
-              </el-col>
-              <el-col :span="24">
-                <el-form-item label="证件类型:" prop="idType"  >
-                  <el-select  v-model="formTicket.idType"  >
-                    <el-option v-for="item in idType"
-                               :value="item.value"
-                               :label="item.name" >{{item.name}}</el-option>
-                  </el-select>
-                </el-form-item>
-              </el-col>
-              <el-col :span="24">
-                <el-form-item label="证件号码:" prop="idNumber" >
-                  <el-input
-                      v-model="formTicket.idNumber"
-                      type="text"
-                      placeholder="请填写证件号码"
-                  ></el-input>
-                </el-form-item>
-              </el-col>
-             <el-form-item>
-               <el-button
-                   class="save"
-                   @click.prevent="saveTicket"
-               >保存</el-button>
-               <el-button
-                   class="btn"
-                   @click.prevent="closeTicket"
-               >取消</el-button>
+            <div class="form-header">
+              <span class="title">新增购票人信息</span>
+            </div>
+            <el-form ref="ticketRef" :model="formTicket" :rules="formTicketRules" class="ticketForm" label-width="100px" status-icon>
+              <el-form-item label="姓名" prop="relName">
+                <el-input
+                    v-model="formTicket.relName"
+                    type="text"
+                    placeholder="请输入姓名"
+                    class="custom-input"
+                ></el-input>
+              </el-form-item>
+              
+              <el-form-item label="证件类型" prop="idType">
+                <el-select v-model="formTicket.idType" class="custom-select" placeholder="请选择证件类型">
+                  <el-option v-for="item in idType"
+                             :key="item.value"
+                             :value="item.value"
+                             :label="item.name">{{item.name}}</el-option>
+                </el-select>
+              </el-form-item>
+              
+              <el-form-item label="证件号码" prop="idNumber">
+                <el-input
+                    v-model="formTicket.idNumber"
+                    type="text"
+                    placeholder="请输入证件号码"
+                    class="custom-input"
+                ></el-input>
+              </el-form-item>
+              
+             <el-form-item class="form-footer">
+               <el-button type="primary" class="save-btn" @click.prevent="saveTicket">保存</el-button>
+               <el-button class="cancel-btn" @click.prevent="closeTicket">取消</el-button>
              </el-form-item>
             </el-form>
           </div>
@@ -74,7 +74,6 @@
     </div>
     <Footer class="foot"></Footer>
   </div>
-
 </template>
 
 <script setup name="TicketUser">
@@ -88,6 +87,7 @@ import {getIdTypeName} from '@/api/common.js'
 import {ElMessage, ElMessageBox} from 'element-plus'
 import { getUserIdKey} from "@/utils/auth";
 import {saveTicketUser} from "@/api/buyTicketUser";
+import { Plus, Delete } from '@element-plus/icons-vue'
 
 
 const {proxy} = getCurrentInstance();
@@ -220,32 +220,99 @@ function reset(){
 
       .right-tab {
         margin-top: 23px;
-          .addUser{
-            margin: 0px 0px 10px 86%;
+        min-height: 500px;
+        
+        .action-bar {
+          display: flex;
+          justify-content: flex-end;
+          margin-bottom: 20px;
+          
+          .add-btn {
             background-color: #FF2D55;
+            border-color: #FF2D55;
             color: #fff;
+            padding: 10px 20px;
+            
+            &:hover {
+              background-color: #ff5c7c;
+              border-color: #ff5c7c;
+            }
           }
+        }
+
+        .table-container {
+          box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.05);
+          border-radius: 4px;
+          overflow: hidden;
+        }
+
         .addTicketUserInfo{
-          border: 1px solid #ebeef5;
-          .title{
-            width: 136px;
-            line-height: 36px;
-            border-bottom: 2px solid #FF2D55;
-            padding-left: 15px;
-            font-size: 16px;
-            color: #333333;
+          background: #fff;
+          border-radius: 8px;
+          box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.05);
+          padding: 30px 40px;
+          
+          .form-header {
+            border-bottom: 1px solid #ebeef5;
+            padding-bottom: 20px;
+            margin-bottom: 30px;
+            
+            .title{
+              font-size: 18px;
+              color: #333;
+              font-weight: 600;
+              position: relative;
+              padding-left: 12px;
+              
+              &:before {
+                content: '';
+                position: absolute;
+                left: 0;
+                top: 4px;
+                height: 16px;
+                width: 4px;
+                background: #FF2D55;
+                border-radius: 2px;
+              }
+            }
           }
-          .line{
-            width: 100%;
-            height:2px;
-            background: #ebeef5;
-            margin-bottom: 50px;
-          }
+
           .ticketForm{
-            margin-top: 2px;
-            .save{
-              background-color: #FF2D55;
-              color: #fff;
+            max-width: 600px;
+            
+            :deep(.el-form-item) {
+              margin-bottom: 24px;
+            }
+            
+            .custom-input,
+            .custom-select {
+              width: 100%;
+            }
+
+            .form-footer {
+              margin-top: 40px;
+              
+              .save-btn {
+                background-color: #FF2D55;
+                border-color: #FF2D55;
+                width: 120px;
+                
+                &:hover {
+                  background-color: #ff5c7c;
+                  border-color: #ff5c7c;
+                }
+              }
+              
+              .cancel-btn {
+                margin-left: 20px;
+                width: 100px;
+                
+                &:hover {
+                  color: #FF2D55;
+                  border-color: #FF2D55;
+                  background-color: #fff5f7;
+                }
+              }
             }
           }
         }
@@ -256,19 +323,5 @@ function reset(){
 
   }
 
-  .foot {
-    margin-top: 500px;
-  }
 }
-
-
-:deep(.el-input__wrapper) {
-  flex-grow: 0.3
-}
-:deep(.el-select .el-input__wrapper ) {
-  flex-grow: 0.4;
-  width: 340.5px !important;
-}
-
-
 </style>
