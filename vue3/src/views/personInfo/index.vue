@@ -9,7 +9,6 @@
       <div class="right-tab">
         <ul class="title">
           <li class="left">基础资料</li>
-<!--          <li class="right">资料完整度：<span>30%</span></li>-->
         </ul>
         <div class="box">
           <div class="info-list">
@@ -200,26 +199,95 @@ async function getPersonInfoIdList() {
       border: 1px solid #eef1f3;
 
       .info-list {
-        padding: 25px 40px;
+        padding: 30px 40px;
         color: #666;
 
         .tips-info {
-          background: #fffdee;
-          border: 1px solid #edd28b;
-          padding: 10px 20px;
-          color: #999;
-          margin-bottom: 15px;
+          background: #fff5f7;
+          border: 1px solid #ffd9e2;
+          padding: 12px 20px;
+          color: #FF2D55;
+          margin-bottom: 25px;
+          border-radius: 4px;
+          font-size: 14px;
+          display: flex;
+          align-items: center;
+          
+          &::before {
+            content: "!";
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            background: #FF2D55;
+            color: #fff;
+            border-radius: 50%;
+            text-align: center;
+            line-height: 16px;
+            margin-right: 8px;
+            font-size: 12px;
+            font-weight: bold;
+          }
+        }
 
+        .perInfo-form {
+          :deep(.el-form-item) {
+            margin-bottom: 24px;
+          }
+
+          :deep(.el-form-item__label) {
+            font-weight: normal;
+            color: #333;
+            padding-right: 20px;
+          }
+
+          :deep(.el-input__wrapper) {
+            box-shadow: 0 0 0 1px #dcdfe6 inset;
+            border-radius: 4px;
+            padding: 1px 11px;
+            height: 36px;
+            
+            &:hover {
+              box-shadow: 0 0 0 1px #c0c4cc inset;
+            }
+            
+            &.is-focus {
+              box-shadow: 0 0 0 1px #FF2D55 inset !important;
+            }
+          }
+
+          :deep(.el-input__inner) {
+            height: 36px;
+            line-height: 36px;
+          }
+
+          :deep(.el-radio__input.is-checked .el-radio__inner) {
+            border-color: #FF2D55;
+            background: #FF2D55;
+          }
+
+          :deep(.el-radio__input.is-checked + .el-radio__label) {
+            color: #FF2D55;
+          }
         }
 
         .btn {
-          margin-left: 150px;
-          background: #FF2D55;
-          width: 73px;
-          height: 25px;
+          margin-left: 100px;
+          background: linear-gradient(90deg, #FF2D55 0%, #ff6b88 100%);
+          width: 120px;
+          height: 36px;
           border: 0;
           cursor: pointer;
           color: #fff;
+          border-radius: 18px;
+          font-size: 14px;
+          font-weight: 500;
+          transition: all 0.3s;
+          
+          &:hover {
+            opacity: 0.9;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(255, 45, 85, 0.3);
+          }
         }
       }
     }
