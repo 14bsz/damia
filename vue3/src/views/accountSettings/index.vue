@@ -17,7 +17,7 @@
               <li class="detail">{{ item.detailInfo }}</li>
               <li class="explain">
                 <router-link v-if="experienceAccountFlag != 1" :to="item.path"
-                             :class="(item.explainInfo =='立即验证'||item.explainInfo =='立即绑定')? 'pathBtn':'btnColor'">
+                             :class="(item.explainInfo =='立即认证'||item.explainInfo =='立即绑定')? 'pathBtn':'btnColor'">
                   {{ item.explainInfo }}
                 </router-link>
                 <div class="btnColor" v-if="experienceAccountFlag == 1">
@@ -50,7 +50,7 @@ let telNum = ref('')
 const accountList = reactive([
   {
     nameInfo: '登录密码',
-    detailInfo: '',
+    detailInfo: '建议使用字母、数字和符号组合，并定期修改，提高账号安全',
     explainInfo: '修改',
     path: './editPassword',
     nameInfoStyle: 'name-info-yes'
@@ -64,7 +64,7 @@ const accountList = reactive([
   },
   {
     nameInfo: '手机验证',
-    detailInfo: `您验证的手机：${telNum.value}`,
+    detailInfo: '绑定手机号可用于登录与找回密码，并接收订单与安全通知',
     explainInfo: '更换',
     path: './mobile',
     nameInfoStyle: 'name-info-yes'
@@ -72,7 +72,7 @@ const accountList = reactive([
   {
     nameInfo: '实名认证',
     detailInfo: '认证您的实名信息，提高安全等级',
-    explainInfo: '立即验证',
+    explainInfo: '立即认证',
     path: './authentication',
     nameInfoStyle: 'name-info-yes'
 
@@ -98,8 +98,16 @@ function getIsVaild() {
           item.nameInfoStyle = 'name-info-yes'
           item.explainInfo = '更换'
         }
+      } else if (item.nameInfo == '手机验证') {
+        item.detailInfo = telNum.value ? `您验证的手机：${telNum.value}` : '绑定手机号可用于登录与找回密码，并接收订单与安全通知'
       } else if (item.nameInfo == '实名认证') {
-        relAuthenticationStatus == "0" ? item.nameInfoStyle = 'name-info-no' : item.nameInfoStyle = 'name-info-yes'
+        if (relAuthenticationStatus == "0") {
+          item.nameInfoStyle = 'name-info-no'
+          item.explainInfo = '立即认证'
+        } else {
+          item.nameInfoStyle = 'name-info-yes'
+          item.explainInfo = '更换'
+        }
       }
 
       return item
