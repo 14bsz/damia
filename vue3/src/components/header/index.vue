@@ -45,6 +45,7 @@
       <div class="searchHeader" v-if="isShowHeader">
         <el-input
             v-model="iptSearch"
+            @keyup.enter="getProgramSearchList"
             placeholder="搜索明星、演出、体育赛事"
             class="input-with-search"
         >
@@ -221,11 +222,8 @@ function getCityInfoList(params) {
   })
 }
 function getProgramSearchList() {
-  queryParams.value.content = iptSearch.value
-  getProgramSearch(queryParams.value).then(response => {
-    emitter.emit('searchList',response.data)
-    router.push({path: "/allType/index"});
-  })
+  const q = (iptSearch.value || '').trim()
+  router.push({ path: "/allType/index", query: { q } })
 }
 
 </script>
