@@ -30,9 +30,9 @@
             <router-link :to="{ name: 'detial', params: { id: item.programListVoList[0].id }}"><img :src="item.programListVoList[0].itemPicture" alt=""></router-link>
           </div>
 
-            <div class="box-right">
-              <div class="rtLink" v-for="(dict,ind) in item.programListVoList.slice(1)">
-                <router-link  :to="{ name: 'detial', params: { id: dict.id }}" >
+          <div class="box-right">
+            <div class="rtLink" v-for="(dict,ind) in item.programListVoList.slice(1, 7)">
+              <router-link  :to="{ name: 'detial', params: { id: dict.id }}" >
                 <img :src="dict.itemPicture" alt="">
                 <div class="info">
                   <div class="img-title">{{ dict.title }}</div>
@@ -40,9 +40,9 @@
                   <div class="showTime">{{ dict.showTime }}{{ dict.showWeekTime }}</div>
                   <div class="price">{{ dict.minPrice }} <span class="rise">起</span></div>
                 </div>
-                </router-link>
-              </div>
+              </router-link>
             </div>
+          </div>
 
         </div>
 
@@ -133,10 +133,14 @@ function getMainCategoryList() {
   width: 100%;
   max-width: 1200px;
   margin: 0 auto;
+  padding-bottom: 40px;
 
   .carousel-lamp {
     width: 100%;
-    img{
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.08);
+    img {
       width: 100%;
       height: 300px;
       object-fit: cover;
@@ -144,46 +148,54 @@ function getMainCategoryList() {
   }
 
   .category {
-
-    margin-top: 15px !important;
-    padding: 22px 0 25px 0;
-    border: 1px solid #EBEBEB;
-    zoom: 1;
+    margin-top: 24px !important;
+    padding: 24px 0;
+    border: 1px solid #f0f0f0;
+    border-radius: 12px;
+    background: #fff;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.04);
 
     ul {
       list-style-type: none;
       margin: 0;
-      padding: 0;
-      margin-left: 40px;
-      width: 1160px;
-      height: 80px;
+      padding: 0 20px;
+      width: 100%;
+      height: auto;
+      display: flex;
+      justify-content: space-around;
+      align-items: center;
+      box-sizing: border-box;
 
       li {
-        float: left;
         display: block;
-        width: 110px;
+        width: auto;
         text-align: center;
+        transition: transform 0.3s ease;
 
-        a {
-          width: 110px;
-          height: 50px;
-          display: block;
-
-
-          span {
-            width: 110px;
-            height: 20px;
-            display: inline-block;
-            font-size: 16px;
-            color: #111;
-            text-align: center;
-
-            &:hover {
-              color: rgba(255, 55, 29, 0.85);
-            }
-          }
+        &:hover {
+          transform: translateY(-4px);
         }
 
+        a {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          width: 110px;
+          height: auto;
+          text-decoration: none;
+
+          span {
+            margin-top: 8px;
+            font-size: 16px;
+            color: #333;
+            text-align: center;
+            transition: color 0.3s;
+          }
+
+          &:hover span {
+             color: #ff371d;
+          }
+        }
 
         .sprit {
           display: block;
@@ -194,189 +206,189 @@ function getMainCategoryList() {
           background-size: 100% auto;
         }
 
-        .sprit1 {
-          background-position: 0 0;
-        }
-
-        .sprit2 {
-          background-position: 0 -64px;
-        }
-
-        .sprit3 {
-          background-position: 0 -120px;
-        }
-
-        .sprit4 {
-          background-position: 0 -180px;
-        }
-
-        .sprit5 {
-          background-position: 0 -240px;
-        }
-
-        .sprit6 {
-          background-position: 0 -297px
-        }
-
-        .sprit7 {
-          background-position: 0 -360px;
-        }
-
-        .sprit8 {
-          background-position: 0 -420px;
-        }
-
-        .sprit9 {
-          background-position: 0 -480px;
-        }
-
-        .sprit10 {
-          background-position: 0 -540px;
-        }
+        .sprit1 { background-position: 0 0; }
+        .sprit2 { background-position: 0 -64px; }
+        .sprit3 { background-position: 0 -120px; }
+        .sprit4 { background-position: 0 -180px; }
+        .sprit5 { background-position: 0 -240px; }
+        .sprit6 { background-position: 0 -297px; }
+        .sprit7 { background-position: 0 -360px; }
+        .sprit8 { background-position: 0 -420px; }
+        .sprit9 { background-position: 0 -480px; }
+        .sprit10 { background-position: 0 -540px; }
       }
     }
-
-
   }
 
   .diffrentType {
     width: 100%;
     position: relative;
-    padding: 20px;
-    border: 1px solid #EBEBEB;
-    margin-top: 15px;
+    padding: 24px;
+    background: #fff;
+    border: 1px solid #f0f0f0;
+    border-radius: 12px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+    margin-top: 24px;
     display: flex;
+    flex-direction: column;
+    box-sizing: border-box;
 
     .name {
       font-size: 24px;
-      display: inline-block;
-      vertical-align: middle;
-      margin-left: 5px;
-      color: #111;
-      width: 1100px;
+      font-weight: 600;
+      color: #333;
+      width: 100%;
       height: 40px;
       line-height: 40px;
-      overflow: hidden;
-    }
+      margin-bottom: 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-left: 5px solid #ff371d;
+      padding-left: 16px;
+      box-sizing: border-box;
 
-    .more {
-      display: inline-block;
-      vertical-align: middle;
-      float: right;
-      font-size: 14px;
-      color: #9B9B9B;
-      max-width: 100px;
-      line-height: 40px;
-      height: 100%;
-      overflow: hidden;
-      text-align: right;
-    }
-  }
+      span {
+        flex: 1;
+      }
 
-  .box {
-    margin-top: 15px;
+      .more {
+        font-size: 14px;
+        color: #999;
+        text-decoration: none;
+        transition: color 0.3s;
+        text-align: right;
+        min-width: 60px;
 
-    .box-left {
-      display: inline-block;
-      width: 270px;
-      height: 360px;
-      position: relative;
-      overflow: hidden;
-      border: 1px solid #efefef;
-
-      img {
-        width: 100%;
-        height: 100%;
-        position: absolute;
-        left: 0;
-        top: 0;
-
+        &:hover {
+          color: #ff371d;
+        }
       }
     }
 
-    .box-right {
-      display: inline-block;
-      width: calc(100% - 285px);
-      margin-left: 15px;
-      height: 360px;
-      vertical-align: top;
-      overflow: hidden;
+    .box {
+      margin-top: 0;
+      display: flex;
+      justify-content: space-between;
 
-      .rtLink {
-        width: 273px;
-        height: 160px;
-        display: block;
-        margin-right: 16px;
-        display: inline-block;
-        margin-bottom: 40px;
-        color: #000;
+      .box-left {
+        width: 270px;
+        height: 360px;
+        position: relative;
         overflow: hidden;
+        border-radius: 8px;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        flex-shrink: 0;
 
         img {
-          width: 118px;
-          height: 158px;
-          overflow: hidden;
-          position: relative;
-          display: inline-block;
-          border: 1px solid #efefef;
+          width: 100%;
+          height: 100%;
+          object-fit: cover;
+          transition: transform 0.5s ease;
         }
 
-        .info {
-          width: 138px;
-          height: 100%;
-          position: relative;
-          padding-left: 15px;
-          display: inline-block;
-          vertical-align: top;
+        &:hover img {
+          transform: scale(1.05);
+        }
+      }
 
-          .img-title {
-            line-height: 20px;
-            font-size: 14px;
-            color: #4A4A4A;
-            overflow: hidden;
-            display: -webkit-box;
-            -webkit-box-orient: vertical;
-            -webkit-line-clamp: 2;
+      .box-right {
+        flex: 1;
+        margin-left: 20px;
+        height: 360px;
+        // 移除 overflow: hidden 以允许 hover 浮动效果不被遮挡
+        // overflow: hidden; 
+        display: flex;
+        flex-wrap: wrap;
+        align-content: flex-start;
+
+        .rtLink {
+          width: 273px;
+          height: 160px;
+          margin-right: 18px;
+          margin-bottom: 40px;
+          display: block; // .rtLink 本身作为容器
+          transition: transform 0.3s ease;
+
+          &:hover {
+             transform: translateY(-4px);
+
+             .img-title {
+               color: #ff371d;
+             }
           }
 
-          .local {
+          &:nth-of-type(3n) {
+            margin-right: 0;
+          }
+
+          a {
+            display: flex; // a 标签作为 flex 容器
             width: 100%;
-            display: -webkit-box;
-            -webkit-box-orient: vertical;
-            -webkit-line-clamp: 2;
-            font-size: 12px;
-            margin-top: 14px;
-            color: #9B9B9B;
-            overflow: hidden;
-            word-break: break-all;
+            height: 100%;
+            text-decoration: none;
+            color: inherit;
           }
 
-          .showTime {
-            width: 100%;
-            display: -webkit-box;
-            -webkit-box-orient: vertical;
-            -webkit-line-clamp: 2;
-            font-size: 12px;
-            margin-top: 14px;
-            color: #9B9B9B;
-            overflow: hidden;
-            word-break: break-all;
+          img {
+            width: 118px;
+            height: 158px;
+            border-radius: 6px;
+            object-fit: cover;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            flex-shrink: 0;
+            display: block; // 防止图片底部留白
           }
 
-          .price {
-            width: 138px;
-            position: absolute;
-            left: 15px;
-            bottom: 0;
-            font-size: 19px;
-            color: rgba(255, 55, 29, 0.85);
-            white-space: nowrap;
+          .info {
+            flex: 1;
+            padding-left: 14px;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
             overflow: hidden;
-            text-overflow: ellipsis;
-            font-weight: bold;
+            height: 100%; // 确保高度撑满
 
-            .rise {
-              font-size: 14px;
+            .img-title {
+              font-size: 15px;
+              color: #333;
+              line-height: 20px; // 显式设置行高
+              font-weight: 500;
+              margin-bottom: 4px;
+              display: -webkit-box;
+              -webkit-box-orient: vertical;
+              -webkit-line-clamp: 2;
+              overflow: hidden;
+              text-overflow: ellipsis; // 增加省略号
+              transition: color 0.3s;
+              max-height: 42px; // 2行 * 20px + 少量缓冲，防止溢出
+            }
+
+            .local, .showTime {
+              font-size: 12px;
+              color: #999;
+              margin-top: 4px;
+              white-space: nowrap;
+              overflow: hidden;
+              text-overflow: ellipsis;
+              display: block;
+              line-height: 1.5;
+            }
+
+            .price {
+              font-size: 20px;
+              color: #ff371d;
+              font-weight: bold;
+              margin-top: auto;
+              line-height: 1;
+              padding-bottom: 2px; // 微调底部位置
+
+              .rise {
+                font-size: 12px;
+                color: #999;
+                font-weight: normal;
+                margin-left: 2px;
+              }
             }
           }
         }
